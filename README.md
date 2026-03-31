@@ -38,12 +38,13 @@ graph TD
     end
 
     subgraph Backend["Backend (FastAPI)"]
-        H[/api/config]
-        I[/api/stations]
-        J[/api/stations/search]
-        K[/api/prices]
-        L[/api/prices/:id/vote]
-        M[/api/stats]
+        H["/api/config"]
+        I["/api/stations"]
+        J["/api/stations/search"]
+        K["/api/prices"]
+        L["/api/prices/:id/vote"]
+        M["/api/stats"]
+
     end
 
     subgraph Data["Data Layer"]
