@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: fpt_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fuelpricetracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: fpt_backend
+    restart: unless-stopped
+    ports:
+      - "9098:9098"
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/code/backend
+      - ./frontend:/code/frontend
+
+volumes:
+  pgdata:

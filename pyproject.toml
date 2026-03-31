@@ -1,0 +1,25 @@
+[project]
+name = "fuelpricetracker"
+version = "0.1.0"
+description = "Real-time crowdsourced fuel price tracker for Ireland"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]",
+    "sqlalchemy[asyncio]>=2.0",
+    "geoalchemy2",
+    "asyncpg",
+    "pydantic-settings",
+    "python-dotenv",
+    "alembic",
+    "httpx",
+    "pyjwt[crypto]",
+
+
+]
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+
+[project.optional-dependencies]
+dev = ["ruff", "pytest", "httpx"]
