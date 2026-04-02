@@ -10,8 +10,10 @@ class StationResponse(BaseModel):
     lng: float
     station_type: str
     county: str | None
+    has_prices: bool = False
 
     model_config = {"from_attributes": True}
+
 
 
 class PriceSubmission(BaseModel):

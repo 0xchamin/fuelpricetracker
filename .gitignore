@@ -34,3 +34,8 @@ Thumbs.db
 __pycache__/
 *.egg-info/
 .env
+
+frontend/index_claude.html
+frontend/index_orignal.html
+frontend/styles_claude.css
+frontend/styles_original.css

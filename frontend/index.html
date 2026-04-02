@@ -84,6 +84,18 @@
         </div>
     </div>
 
+    <!-- Activity feed -->
+    <div id="activity-feed">
+        <div id="feed-header">
+            <span id="feed-title">📢 Recent Activity</span>
+            <span id="feed-arrow">▾</span>
+        </div>
+        <div id="feed-body">
+            <div class="feed-item feed-meta">Loading...</div>
+        </div>
+    </div>
+
+
     <!-- Icon legend -->
     <div id="legend">
         <div id="legend-toggle">
@@ -103,11 +115,22 @@
                 <div class="legend-cluster">5</div>
                 <span>Grouped Stations</span>
             </div>
+            <div class="legend-item">
+                <div style="width:20px;height:20px;position:relative;flex-shrink:0;">
+                    <div
+                        style="width:14px;height:14px;background:#16a34a;border-radius:50%;border:1.5px solid #fff;position:absolute;right:0;top:0;display:flex;align-items:center;justify-content:center;">
+                        <span style="color:#fff;font-size:8px;font-weight:bold;">€</span>
+                    </div>
+                </div>
+                <span>Has reported prices</span>
+            </div>
+
         </div>
     </div>
 
     <div id="social-links">
-        <a type="button" href="https://www.linkedin.com/in/chaminhewage/" target="_blank" rel="noopener" title="LinkedIn">LinkedIn</a>
+        <a type="button" href="https://www.linkedin.com/in/chaminhewage/" target="_blank" rel="noopener"
+            title="LinkedIn">LinkedIn</a>
         <a type="button" href="https://github.com/0xchamin/" target="_blank" rel="noopener" title="GitHub">GitHub</a>
     </div>
 
@@ -231,6 +254,8 @@
             document.getElementById('overlay').classList.add('hidden');
             document.getElementById('overlay-search').disabled = true;
             document.getElementById('search-bar').style.display = 'block';
+            document.getElementById('activity-feed').style.display = 'none';
+
         }
 
         async function handleSearch(query) {
@@ -266,6 +291,8 @@
         let loadedStationIds = new Set();
         const stationDataSource = new Cesium.CustomDataSource('stations');
 
+
+
         async function loadStations(viewer) {
             const rect = viewer.camera.computeViewRectangle();
             if (!rect) return;
@@ -285,17 +312,27 @@
             const res = await fetch(`/api/stations?${params}`);
             const stations = await res.json();
 
-            for (const s of stations) {
-                if (loadedStationIds.has(s.id)) continue;
-                loadedStationIds.add(s.id);
+            // Filter to only new stations
+            const newStations = stations.filter(s => !loadedStationIds.has(s.id));
+            if (newStations.length === 0) return;
 
-                const icon = s.station_type === 'ev' ? '/assets/icon-ev.svg' : '/assets/icon-fuel.svg';
+            // Pre-load all icons in parallel
+            const iconPromises = newStations.map(s => {
+                const baseIcon = s.station_type === 'ev' ? '/assets/icon-ev.svg' : '/assets/icon-fuel.svg';
+                return createBadgedIcon(baseIcon, s.has_prices);
+            });
+            const icons = await Promise.all(iconPromises);
+
+            // Add all entities at once
+            for (let i = 0; i < newStations.length; i++) {
+                const s = newStations[i];
+                loadedStationIds.add(s.id);
 
                 stationDataSource.entities.add({
                     id: `station-${s.id}`,
                     position: Cesium.Cartesian3.fromDegrees(s.lng, s.lat),
                     billboard: {
-                        image: icon,
+                        image: icons[i],
                         width: 28,
                         height: 28,
                         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -313,6 +350,7 @@
             stationDataSource.clustering.enabled = false;
             stationDataSource.clustering.enabled = true;
         }
+
 
         function createClusterIcon(count) {
             const size = count > 100 ? 50 : count > 20 ? 44 : 36;
@@ -452,58 +490,50 @@
             }
         }
 
+        function createBadgedIcon(baseUrl, hasPrices) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    const size = 36;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+
+                    // Draw base icon
+                    ctx.drawImage(img, 0, 0, size, size);
+
+                    // Draw € badge if has prices
+                    if (hasPrices) {
+                        ctx.beginPath();
+                        ctx.arc(size - 8, 8, 7, 0, Math.PI * 2);
+                        ctx.fillStyle = '#16a34a';
+                        ctx.fill();
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 1.5;
+                        ctx.stroke();
+
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 9px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('€', size - 8, 8.5);
+                    }
+
+                    resolve(canvas.toDataURL());
+                };
+                img.src = baseUrl;
+            });
+        }
+
+
         async function initMap() {
+            // Fetch config first (needed by both Cesium and Clerk)
             const res = await fetch('/api/config');
             const config = await res.json();
 
-            // Clerk auth
-            const clerkPublishableKey = config.clerk_publishable_key;
-            const clerkFrontendApi = config.clerk_frontend_api;
-
-            await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.setAttribute('data-clerk-publishable-key', clerkPublishableKey);
-                script.src = `${clerkFrontendApi}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
-                script.async = true;
-                script.crossOrigin = 'anonymous';
-                script.addEventListener('load', resolve);
-                script.addEventListener('error', reject);
-                document.head.appendChild(script);
-            });
-
-            await window.Clerk.load();
-            const clerk = window.Clerk;
-
-            const authBtn = document.getElementById('auth-btn');
-            const userInfo = document.getElementById('user-info');
-
-            function updateAuthUI() {
-                if (clerk.user) {
-                    authBtn.style.display = 'none';
-                    userInfo.style.display = 'flex';
-                    document.getElementById('user-avatar').src = clerk.user.imageUrl;
-                    document.getElementById('user-name').textContent =
-                        clerk.user.firstName || clerk.user.emailAddresses[0]?.emailAddress || 'User';
-                } else {
-                    authBtn.style.display = 'block';
-                    userInfo.style.display = 'none';
-                }
-            }
-
-            authBtn.addEventListener('click', () => {
-                clerk.openSignIn();
-            });
-
-            document.getElementById('sign-out-btn').addEventListener('click', async () => {
-                await clerk.signOut();
-                updateAuthUI();
-            });
-
-            clerk.addListener(updateAuthUI);
-            updateAuthUI();
-            window.clerkInstance = clerk;
-
-            // CesiumJS map
+            // Start Cesium immediately
             Cesium.Ion.defaultAccessToken = config.cesium_ion_token;
 
             viewer = new Cesium.Viewer('cesiumContainer', {
@@ -556,27 +586,81 @@
             let loadTimeout;
             viewer.camera.changed.addEventListener(() => {
                 const height = viewer.camera.positionCartographic.height;
-                if (height > 500000) stationDataSource.clustering.pixelRange = 40;
-                else if (height > 100000) stationDataSource.clustering.pixelRange = 25;
-                else if (height > 50000) stationDataSource.clustering.pixelRange = 15;
-                else stationDataSource.clustering.pixelRange = 8;
+                if (height > 500000) stationDataSource.clustering.pixelRange = 20;
+                else if (height > 100000) stationDataSource.clustering.pixelRange = 10;
+                else if (height > 50000) stationDataSource.clustering.pixelRange = 6;
+                else stationDataSource.clustering.pixelRange = 2;
 
                 clearTimeout(loadTimeout);
                 loadTimeout = setTimeout(() => loadStations(viewer), 500);
+
+                if (height < 200000) {
+                    document.getElementById('activity-feed').style.display = 'none';
+                }
             });
 
             // Dismiss overlay on zoom
             viewer.camera.changed.addEventListener(() => {
                 if (overlayDismissed) return;
                 const height = viewer.camera.positionCartographic.height;
-                if (height < ZOOM_THRESHOLD) {
-                    dismissOverlay();
-                }
+                if (height < ZOOM_THRESHOLD) dismissOverlay();
             });
 
-            // Station click popup
+            // Hide popup on camera move
             const popup = document.getElementById('station-popup');
+            viewer.camera.changed.addEventListener(() => {
+                popup.style.display = 'none';
+            });
 
+            // Load stations immediately
+            loadStations(viewer);
+
+            // Load Clerk in parallel (non-blocking for map)
+            const clerkPublishableKey = config.clerk_publishable_key;
+            const clerkFrontendApi = config.clerk_frontend_api;
+
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.setAttribute('data-clerk-publishable-key', clerkPublishableKey);
+                script.src = `${clerkFrontendApi}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
+                script.async = true;
+                script.crossOrigin = 'anonymous';
+                script.addEventListener('load', resolve);
+                script.addEventListener('error', reject);
+                document.head.appendChild(script);
+            });
+
+            await window.Clerk.load();
+            const clerk = window.Clerk;
+
+            const authBtn = document.getElementById('auth-btn');
+            const userInfo = document.getElementById('user-info');
+
+            function updateAuthUI() {
+                if (clerk.user) {
+                    authBtn.style.display = 'none';
+                    userInfo.style.display = 'flex';
+                    document.getElementById('user-avatar').src = clerk.user.imageUrl;
+                    document.getElementById('user-name').textContent =
+                        clerk.user.firstName || clerk.user.emailAddresses[0]?.emailAddress || 'User';
+                } else {
+                    authBtn.style.display = 'block';
+                    userInfo.style.display = 'none';
+                }
+            }
+
+            authBtn.addEventListener('click', () => clerk.openSignIn());
+
+            document.getElementById('sign-out-btn').addEventListener('click', async () => {
+                await clerk.signOut();
+                updateAuthUI();
+            });
+
+            clerk.addListener(updateAuthUI);
+            updateAuthUI();
+            window.clerkInstance = clerk;
+
+            // Station click popup
             document.getElementById('popup-close').addEventListener('click', () => {
                 popup.style.display = 'none';
             });
@@ -605,18 +689,12 @@
                 typeEl.className = `popup-type ${type}`;
 
                 popup.dataset.stationId = props.stationId?.getValue();
-
                 popup.style.left = (click.position.x + 15) + 'px';
                 popup.style.top = (click.position.y - 10) + 'px';
                 fetchAndRenderPrices(props.stationId?.getValue());
                 popup.style.display = 'block';
 
             }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-            // Hide popup on camera move
-            viewer.camera.changed.addEventListener(() => {
-                popup.style.display = 'none';
-            });
 
             // Price form
             let selectedStationId = null;
@@ -630,19 +708,16 @@
             const priceInput = document.getElementById('price-input');
             const observedDate = document.getElementById('observed-date');
 
-            // Prevent Cesium from capturing keyboard/mouse on date input
-            observedDate.addEventListener('keydown', (e) => e.stopPropagation());
-            observedDate.addEventListener('keyup', (e) => e.stopPropagation());
-            observedDate.addEventListener('keypress', (e) => e.stopPropagation());
-            observedDate.addEventListener('mousedown', (e) => {
-                e.stopPropagation();
-                e.stopImmediatePropagation();
+            // Prevent Cesium capturing keyboard/mouse on inputs
+            [priceInput, observedDate].forEach(el => {
+                el.addEventListener('keydown', (e) => e.stopPropagation());
+                el.addEventListener('keyup', (e) => e.stopPropagation());
+                el.addEventListener('keypress', (e) => e.stopPropagation());
+                el.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                });
             });
-
-            // Prevent Cesium from capturing keyboard/mouse on price input
-            priceInput.addEventListener('keydown', (e) => e.stopPropagation());
-            priceInput.addEventListener('keyup', (e) => e.stopPropagation());
-            priceInput.addEventListener('keypress', (e) => e.stopPropagation());
             priceInput.addEventListener('click', () => priceInput.focus());
             priceInput.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
@@ -656,13 +731,8 @@
                 document.getElementById('form-station-name').textContent = stationName;
                 popup.style.display = 'none';
 
-                if (clerk.user) {
-                    formAuthPrompt.style.display = 'none';
-                } else {
-                    formAuthPrompt.style.display = 'block';
-                }
+                formAuthPrompt.style.display = clerk.user ? 'none' : 'block';
 
-                // Reset form
                 document.getElementById('fuel-type-select').value = '';
                 priceInput.value = '';
                 setDateDefaults();
@@ -683,9 +753,7 @@
                 );
             });
 
-            document.getElementById('form-sign-in-btn').addEventListener('click', () => {
-                clerk.openSignIn();
-            });
+            document.getElementById('form-sign-in-btn').addEventListener('click', () => clerk.openSignIn());
 
             function closeForm() {
                 priceFormOverlay.classList.remove('active');
@@ -693,7 +761,6 @@
             }
 
             document.getElementById('price-cancel-btn').addEventListener('click', closeForm);
-
             priceFormOverlay.addEventListener('click', (e) => {
                 if (e.target === priceFormOverlay) closeForm();
             });
@@ -704,32 +771,19 @@
                 const dateValue = observedDate.value;
 
                 let valid = true;
-                if (!fuelType) {
-                    fuelTypeError.style.display = 'block';
-                    valid = false;
-                } else {
-                    fuelTypeError.style.display = 'none';
-                }
+                if (!fuelType) { fuelTypeError.style.display = 'block'; valid = false; }
+                else fuelTypeError.style.display = 'none';
 
-                if (!priceValue || priceValue <= 0 || priceValue >= 10) {
-                    priceError.style.display = 'block';
-                    valid = false;
-                } else {
-                    priceError.style.display = 'none';
-                }
+                if (!priceValue || priceValue <= 0 || priceValue >= 10) { priceError.style.display = 'block'; valid = false; }
+                else priceError.style.display = 'none';
 
-                if (!dateValue) {
-                    dateError.style.display = 'block';
-                    valid = false;
-                } else {
-                    dateError.style.display = 'none';
-                }
+                if (!dateValue) { dateError.style.display = 'block'; valid = false; }
+                else dateError.style.display = 'none';
 
                 if (!valid) return;
 
                 try {
                     const headers = { 'Content-Type': 'application/json' };
-
                     if (clerk.session) {
                         const token = await clerk.session.getToken();
                         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -787,7 +841,6 @@
                 arrow.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
             });
 
-            // Fetch live price count
             async function updatePriceCount() {
                 try {
                     const res = await fetch('/api/stats');
@@ -799,6 +852,45 @@
                 }
             }
             updatePriceCount();
+
+            // Activity feed
+            document.getElementById('feed-header').addEventListener('click', () => {
+                const body = document.getElementById('feed-body');
+                const arrow = document.getElementById('feed-arrow');
+                body.classList.toggle('collapsed');
+                arrow.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
+            });
+
+            async function updateActivityFeed() {
+                try {
+                    const res = await fetch('/api/prices/recent?limit=10');
+                    const items = await res.json();
+                    const feedBody = document.getElementById('feed-body');
+
+                    if (items.length === 0) {
+                        feedBody.innerHTML = '<div class="feed-item feed-meta">No submissions yet</div>';
+                        return;
+                    }
+
+                    feedBody.innerHTML = items.map(item => {
+                        const badge = item.is_verified ? '✅' : '❓';
+                        const fuelType = item.fuel_type.charAt(0).toUpperCase() + item.fuel_type.slice(1);
+                        return `
+                    <div class="feed-item">
+                        ${badge} <span class="feed-station">${item.station_name}</span>
+                        — ${fuelType} €${item.price.toFixed(3)}
+                        <div class="feed-meta">${timeAgo(item.submitted_at)}</div>
+                    </div>
+                `;
+                    }).join('');
+                } catch (e) {
+                    document.getElementById('feed-body').innerHTML =
+                        '<div class="feed-item feed-meta">Failed to load</div>';
+                }
+            }
+
+            updateActivityFeed();
+            setInterval(updateActivityFeed, 60000);
 
             // Floating submit + station search
             const searchOverlay = document.getElementById('station-search-overlay');
@@ -838,11 +930,7 @@
             searchInput.addEventListener('input', () => {
                 clearTimeout(searchTimeout);
                 const query = searchInput.value.trim();
-
-                if (query.length < 2) {
-                    searchResults.innerHTML = '';
-                    return;
-                }
+                if (query.length < 2) { searchResults.innerHTML = ''; return; }
 
                 searchTimeout = setTimeout(async () => {
                     const centre = viewer.camera.positionCartographic;
@@ -866,11 +954,13 @@
                         }
 
                         searchResults.innerHTML = stations.map(s => `
-                            <div class="search-result-item" data-id="${s.id}" data-name="${s.name}" data-brand="${s.brand || ''}" data-type="${s.station_type}" data-lat="${s.lat}" data-lng="${s.lng}">
-                                <div>${s.name}</div>
-                                <div class="search-result-brand">${s.brand || 'Unknown brand'} · ${s.station_type === 'ev' ? '⚡ EV' : '⛽ Fuel'}</div>
-                            </div>
-                        `).join('');
+                    <div class="search-result-item" data-id="${s.id}" data-name="${s.name}"
+                        data-brand="${s.brand || ''}" data-type="${s.station_type}"
+                        data-lat="${s.lat}" data-lng="${s.lng}">
+                        <div>${s.name}</div>
+                        <div class="search-result-brand">${s.brand || 'Unknown brand'} · ${s.station_type === 'ev' ? '⚡ EV' : '⛽ Fuel'}</div>
+                    </div>
+                `).join('');
 
                         searchResults.querySelectorAll('.search-result-item').forEach(item => {
                             item.addEventListener('click', () => {
@@ -881,12 +971,9 @@
 
                                 searchOverlay.classList.remove('active');
                                 viewer.scene.screenSpaceCameraController.enableInputs = true;
-
                                 flyTo(stationLat, stationLng, 5000);
 
-                                setTimeout(() => {
-                                    openPriceForm(stationId, stationName);
-                                }, 2200);
+                                setTimeout(() => openPriceForm(stationId, stationName), 2200);
                             });
                         });
                     } catch (e) {
@@ -902,9 +989,7 @@
             const filterFuel = document.getElementById('filter-fuel');
             const filterEv = document.getElementById('filter-ev');
 
-            filterToggle.addEventListener('click', () => {
-                filterDropdown.classList.toggle('open');
-            });
+            filterToggle.addEventListener('click', () => filterDropdown.classList.toggle('open'));
 
             document.addEventListener('click', (e) => {
                 if (!document.getElementById('station-filter').contains(e.target)) {
@@ -915,14 +1000,12 @@
             function applyFilter() {
                 const showFuel = filterFuel.checked;
                 const showEv = filterEv.checked;
-
                 const entities = stationDataSource.entities.values;
                 for (const entity of entities) {
                     const type = entity.properties?.stationType?.getValue();
                     if (type === 'fuel') entity.show = showFuel;
                     else if (type === 'ev') entity.show = showEv;
                 }
-
                 stationDataSource.clustering.enabled = false;
                 stationDataSource.clustering.enabled = true;
             }
@@ -942,9 +1025,6 @@
                 filterAll.checked = filterFuel.checked && filterEv.checked;
                 applyFilter();
             });
-
-            // Initial load
-            loadStations(viewer);
         }
 
         initMap();

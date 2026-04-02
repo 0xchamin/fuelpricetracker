@@ -859,3 +859,72 @@ html, body, #cesiumContainer {
 #social-links a:hover {
     background: #fff;
 }
+/* Activity feed */
+#activity-feed {
+    position: absolute;
+    bottom: 480px;
+    left: 16px;
+    z-index: 500;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 260px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+#feed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    cursor: pointer;
+    user-select: none;
+}
+
+#feed-header:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+#feed-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+#feed-arrow {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+#feed-body {
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 0 14px 10px;
+}
+
+#feed-body.collapsed {
+    display: none;
+}
+
+.feed-item {
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.78rem;
+    color: #334155;
+    line-height: 1.4;
+}
+
+.feed-item:last-child {
+    border-bottom: none;
+}
+
+.feed-station {
+    font-weight: 600;
+}
+
+.feed-meta {
+    color: #94a3b8;
+    font-size: 0.72rem;
+}

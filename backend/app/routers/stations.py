@@ -6,7 +6,8 @@ from app.database import get_db
 from app.models import Station
 from app.schemas import StationResponse
 from sqlalchemy import select, func
-
+from sqlalchemy import select, func, exists
+from app.models import Station, Price
 
 router = APIRouter(prefix="/api/stations", tags=["stations"])
 
@@ -20,15 +21,26 @@ async def get_stations(
     station_type: str | None = Query(None, description="Filter by station type: fuel, ev, both"),
     db: AsyncSession = Depends(get_db),
 ):
-    bbox = ST_MakeEnvelope(west, south, east, north, 4326)
-    stmt = select(Station).where(ST_Within(Station.geom, bbox))
+    price_exists = exists().where(Price.station_id == Station.id).correlate(Station)
+    stmt = (
+        select(Station, price_exists.label("has_prices"))
+        .where(ST_Within(Station.geom, ST_MakeEnvelope(west, south, east, north, 4326)))
+    )
 
     if station_type:
         stmt = stmt.where(Station.station_type == station_type)
 
     result = await db.execute(stmt)
-    stations = result.scalars().all()
-    return stations
+    rows = result.all()
+
+    return [
+        {
+            "id": s.id, "name": s.name, "brand": s.brand,
+            "lat": s.lat, "lng": s.lng, "station_type": s.station_type,
+            "county": s.county, "has_prices": hp,
+        }
+        for s, hp in rows
+    ]
 
 
 @router.get("/search", response_model=list[StationResponse])

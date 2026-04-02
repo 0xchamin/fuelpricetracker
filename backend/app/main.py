@@ -18,6 +18,8 @@ from app.database import get_db, async_session
 from app.models import Price
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import FastAPI, Depends
+from app.models import Price, Station
+
 
 
 
@@ -68,3 +70,26 @@ async def stats(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(func.count(Price.id)))
     total_prices = result.scalar()
     return {"total_prices": total_prices}
+
+
+@app.get("/api/prices/recent")
+async def recent_prices(limit: int = 10, db: AsyncSession = Depends(get_db)):
+    stmt = (
+        select(Price, Station.name, Station.brand)
+        .join(Station, Price.station_id == Station.id)
+        .order_by(Price.submitted_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+    return [
+        {
+            "station_name": name,
+            "brand": brand,
+            "fuel_type": price.fuel_type,
+            "price": price.price,
+            "is_verified": price.is_verified,
+            "submitted_at": price.submitted_at.isoformat(),
+        }
+        for price, name, brand in rows
+    ]
