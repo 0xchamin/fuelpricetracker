@@ -928,3 +928,92 @@ html, body, #cesiumContainer {
     color: #94a3b8;
     font-size: 0.72rem;
 }
+
+/* --- Mobile Responsiveness (Phones & Small Tablets) --- */
+@media (max-width: 768px) {
+    /* 1. Adjust Top Bar - Allow wrapping for Auth and Filters */
+    #top-bar-right {
+        top: 10px;
+        right: 10px;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+    }
+
+    #auth-btn, #user-info, #filter-toggle, #map-view {
+        padding: 10px 16px; /* Larger touch targets */
+        font-size: 0.85rem;
+    }
+
+    /* 2. Reposition the Floating Submit Button */
+    #floating-submit {
+        bottom: 20px; /* Move from 360px to bottom */
+        right: 20px;
+        padding: 12px 20px;
+        font-size: 1.1rem;
+        border-radius: 50px;
+        width: auto;
+    }
+
+    /* 3. Social Links - Hide or move to avoid overlapping Legend */
+    #social-links {
+        display: none; /* Usually hidden on mobile to save space */
+    }
+
+    /* 4. Legend and Activity Feed */
+    #legend {
+        bottom: 80px; /* Move up to stay above the mobile nav/button */
+        left: 10px;
+        max-width: 160px;
+    }
+
+    #activity-feed {
+        display: none !important; /* Hide feed on mobile to keep map clear */
+    }
+
+    /* 5. Search Bar Adjustments */
+    #search-bar {
+        top: 60px;
+        left: 10px;
+        width: calc(100% - 20px);
+    }
+    
+    #search-bar input {
+        width: 100%;
+        max-width: none;
+    }
+
+    /* 6. Forms and Modals - Make them fill the screen more */
+    #price-form, #station-search-box {
+        width: 95vw;
+        padding: 20px;
+        margin-bottom: 20px; /* Space for keyboard */
+    }
+
+    /* 7. Station Popup - Adjust for thumb-tapping */
+    #station-popup {
+        min-width: 260px;
+        max-width: 280px;
+        font-size: 1rem;
+    }
+
+    /* 8. Community CTA */
+    #community-cta {
+        display: none; /* Hide complex text boxes on mobile by default */
+    }
+}
+
+/* --- Extra Small Devices (Portrait Phones) --- */
+@media (max-width: 480px) {
+    #app-title h1 {
+        font-size: 1.2rem;
+    }
+
+    #overlay-search {
+        width: 90%;
+    }
+    
+    #price-form h3 {
+        font-size: 1.3rem;
+    }
+}

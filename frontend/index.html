@@ -689,8 +689,21 @@
                 typeEl.className = `popup-type ${type}`;
 
                 popup.dataset.stationId = props.stationId?.getValue();
-                popup.style.left = (click.position.x + 15) + 'px';
-                popup.style.top = (click.position.y - 10) + 'px';
+                // Inside the LEFT_CLICK handler:
+                let xPos = click.position.x + 15;
+                let yPos = click.position.y - 10;
+
+                // Simple bounds check for mobile
+                if (window.innerWidth < 768) {
+                    xPos = (window.innerWidth - 280) / 2; // Center it horizontally
+                    yPos = 80; // Keep it near the top
+                }
+
+                popup.style.left = xPos + 'px';
+                popup.style.top = yPos + 'px';
+                popup.style.zIndex = "2000"; // Ensure it stays above other map elements
+
+                
                 fetchAndRenderPrices(props.stationId?.getValue());
                 popup.style.display = 'block';
 
@@ -1025,6 +1038,18 @@
                 filterAll.checked = filterFuel.checked && filterEv.checked;
                 applyFilter();
             });
+            // ADD THE MOBILE INITIALIZATION HERE:
+            if (window.innerWidth < 768) {
+                // Start legends and CTAs collapsed on mobile
+                document.getElementById('legend-body').classList.add('collapsed');
+                document.getElementById('legend-arrow').textContent = '▸';
+
+                const ctaBody = document.getElementById('cta-body');
+                if (ctaBody) {
+                    ctaBody.classList.add('collapsed');
+                    document.getElementById('cta-arrow').textContent = '▸';
+                }
+            }
         }
 
         initMap();
