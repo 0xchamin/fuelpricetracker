@@ -3,64 +3,59 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Fuel Price Tracker</title>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link rel="manifest" href="/assets/manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FuelTracker">
+    <link rel="apple-touch-icon" href="/assets/icon-192.png">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <link href="/assets/styles.css" rel="stylesheet">
 </head>
 
 <body>
-    <div id="cesiumContainer"></div>
-    <div id="credits"></div>
-    <div id="app-title">
-        <h1>⛽ Fuel Price Tracker — Ireland</h1>
-    </div>
+    <div id="map"></div>
 
-    <!-- Landing overlay -->
-    <div id="overlay">
-        <input id="overlay-search" type="text" placeholder="Enter a city or town name..." autofocus>
-    </div>
-
-    <!-- Persistent search bar (shown after overlay dismissed) -->
-    <div id="search-bar">
-        <input id="persistent-search" type="text" placeholder="Search location...">
-    </div>
-
-    <div id="top-bar-right">
-        <!-- Auth -->
-        <div id="auth-container">
+    <!-- Top bar -->
+    <div id="top-bar">
+        <div id="search-wrap">
+            <input id="station-search-input" type="text" placeholder="Search for a fuel station...">
+            <div id="station-search-results"></div>
+        </div>
+        <div id="top-bar-right">
             <button id="auth-btn" style="display:none;">Sign In</button>
-            <div id="user-info">
+            <div id="user-info" style="display:none;">
                 <img id="user-avatar" src="" alt="avatar">
-                <span id="user-name"></span>
                 <button id="sign-out-btn">Sign Out</button>
             </div>
-        </div>
-
-        <!-- Station filter -->
-        <div id="station-filter">
-            <div id="filter-toggle">Stations ▾</div>
-            <div id="filter-dropdown">
-                <label><input type="checkbox" id="filter-all" checked> Select All</label>
-                <hr>
-                <label><input type="checkbox" id="filter-fuel" checked> ⛽ Fuel Stations</label>
-                <label><input type="checkbox" id="filter-ev" checked> ⚡ EV Charging</label>
+            <div id="station-filter">
+                <div id="filter-toggle">Filter</div>
+                <div id="filter-dropdown">
+                    <label><input type="checkbox" id="filter-all" checked> All</label>
+                    <hr>
+                    <label><input type="checkbox" id="filter-fuel" checked> Fuel</label>
+                    <label><input type="checkbox" id="filter-ev" checked> EV</label>
+                </div>
             </div>
-        </div>
-
-        <!-- Map view switcher -->
-        <div id="view-switcher">
-            <select id="map-view">
-                <option value="satellite">Satellite</option>
-                <option value="street">Street / Road</option>
-                <option value="terrain">Terrain</option>
-            </select>
         </div>
     </div>
 
-    <!-- Station popup -->
+    <!-- Notification banner -->
+    <div id="notif-banner">
+        <span>Get reminders to submit prices?</span>
+        <button id="notif-allow-btn">Allow</button>
+        <button id="notif-dismiss-btn">Not now</button>
+    </div>
+
+    <!-- Station bottom sheet popup -->
     <div id="station-popup">
+        <div class="popup-drag-handle"></div>
         <div class="popup-header">
             <span class="popup-name" id="popup-name"></span>
             <button class="popup-close" id="popup-close">&times;</button>
@@ -69,85 +64,19 @@
         <div class="popup-detail" id="popup-county"></div>
         <span class="popup-type" id="popup-type"></span>
         <div id="popup-prices"></div>
-        <div style="margin-top: 10px;">
-            <button id="popup-submit-price" style="
-                width: 100%;
-                padding: 8px;
-                font-size: 0.85rem;
-                font-weight: 600;
-                border: none;
-                border-radius: 8px;
-                background: #3b82f6;
-                color: #fff;
-                cursor: pointer;
-            ">Submit Price</button>
-        </div>
+        <button id="popup-submit-price">Submit Price</button>
     </div>
 
-    <!-- Activity feed -->
-    <div id="activity-feed">
-        <div id="feed-header">
-            <span id="feed-title">📢 Recent Activity</span>
-            <span id="feed-arrow">▾</span>
-        </div>
-        <div id="feed-body">
-            <div class="feed-item feed-meta">Loading...</div>
-        </div>
-    </div>
-
-
-    <!-- Icon legend -->
-    <div id="legend">
-        <div id="legend-toggle">
-            <span>Info</span>
-            <span id="legend-arrow">▾</span>
-        </div>
-        <div id="legend-body">
-            <div class="legend-item">
-                <img class="legend-icon" src="/assets/icon-fuel.svg" alt="Fuel">
-                <span>Fuel Station</span>
-            </div>
-            <div class="legend-item">
-                <img class="legend-icon" src="/assets/icon-ev.svg" alt="EV">
-                <span>EV Charging</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-cluster">5</div>
-                <span>Grouped Stations</span>
-            </div>
-            <div class="legend-item">
-                <div style="width:20px;height:20px;position:relative;flex-shrink:0;">
-                    <div
-                        style="width:14px;height:14px;background:#16a34a;border-radius:50%;border:1.5px solid #fff;position:absolute;right:0;top:0;display:flex;align-items:center;justify-content:center;">
-                        <span style="color:#fff;font-size:8px;font-weight:bold;">€</span>
-                    </div>
-                </div>
-                <span>Has reported prices</span>
-            </div>
-
-        </div>
-    </div>
-
-    <div id="social-links">
-        <a type="button" href="https://www.linkedin.com/in/chaminhewage/" target="_blank" rel="noopener"
-            title="LinkedIn">LinkedIn</a>
-        <a type="button" href="https://github.com/0xchamin/" target="_blank" rel="noopener" title="GitHub">GitHub</a>
-    </div>
-
-
-    <!-- Price submission form -->
+    <!-- Price form overlay -->
     <div id="price-form-overlay">
         <div id="price-form">
             <h3>Submit Price</h3>
             <div class="form-station" id="form-station-name"></div>
-
             <div id="form-auth-prompt">
-                Sign in for your submission to be verified ✅
-                <br>
+                Sign in for verified status<br>
                 <button id="form-sign-in-btn">Sign In</button>
             </div>
-
-            <label for="fuel-type-select">Fuel Type</label>
+            <label>Fuel Type</label>
             <select id="fuel-type-select">
                 <option value="">Select fuel type...</option>
                 <option value="petrol">Petrol</option>
@@ -157,904 +86,309 @@
                 <option value="ev">EV Charging</option>
             </select>
             <div class="form-error" id="fuel-type-error">Please select a fuel type</div>
-
-            <label for="price-input">Price (€ per litre)</label>
+            <label>Price (euro per litre)</label>
             <input id="price-input" type="number" step="0.001" min="0.01" max="9.999" placeholder="e.g. 1.659">
-            <div class="form-error" id="price-error">Enter a valid price (0.01 – 9.99)</div>
-
-            <label for="observed-date">Date Observed</label>
+            <div class="form-error" id="price-error">Enter a valid price (0.01-9.99)</div>
+            <label>Date Observed</label>
             <input id="observed-date" type="date">
-            <div class="form-error" id="date-error">Date must be within the last 30 days</div>
-
+            <div class="form-error" id="date-error">Must be within last 30 days</div>
             <div class="form-buttons">
                 <button id="price-cancel-btn">Cancel</button>
                 <button id="price-submit-btn">Submit</button>
             </div>
-
-            <div class="form-success" id="form-success">✅ Price submitted successfully!</div>
+            <div class="form-success" id="form-success">Price submitted!</div>
         </div>
     </div>
 
     <!-- Floating submit button -->
-    <button id="floating-submit">➕ Submit Price</button>
-
-    <!-- Station search modal -->
-    <div id="station-search-overlay">
-        <div id="station-search-box">
-            <h3>Find a Station</h3>
-            <input id="station-search-input" type="text" placeholder="Search by station name...">
-            <div id="station-search-results"></div>
-            <button id="station-search-cancel">Cancel</button>
-        </div>
-    </div>
-
-    <!-- Community CTA -->
-    <div id="community-cta">
-        <div id="cta-header">
-            <span id="cta-title">🇮🇪 Community-Powered</span>
-            <span id="cta-arrow">▾</span>
-        </div>
-        <div id="cta-body">
-            <p>We're building a free tool to help you find the <strong>cheapest fuel near you</strong> — powered
-                entirely by people like you.</p>
-            <div id="cta-stat">📊 Loading...</div>
-            <p class="cta-highlight">
-                🚧 <strong>Coming soon:</strong> cheapest stations by area, price trends &amp; alerts
-            </p>
-            <p class="cta-highlight">
-                ✅ Sign up &amp; submit for <strong>verified</strong> status<br>
-                ❓ Or submit anonymously — every price helps!
-            </p>
-            <p class="cta-footer">The more we contribute, the more we all save. 💪</p>
-        </div>
-    </div>
+    <button id="floating-submit">+ Submit Price</button>
 
     <script>
-        const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
-        const ZOOM_THRESHOLD = 800000;
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(console.error);
+        }
 
-        let viewer;
-        let overlayDismissed = false;
+        const map = L.map('map', { zoomControl: false }).setView([53.4, -7.6], 7);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+        }).addTo(map);
 
-        async function geocode(query) {
+        const clusterGroup = L.markerClusterGroup({ chunkedLoading: true });
+        map.addLayer(clusterGroup);
+
+        const loadedStationIds = new Set();
+        const stationMarkers = {};
+        let showFuel = true, showEv = true;
+
+        const mkIcon = (type, hasPrices) => L.divIcon({
+            className: '',
+            html: `<div class="map-marker ${hasPrices ? 'has-prices' : ''} ${type}"><img src="/assets/${type === 'ev' ? 'icon-ev' : 'icon-fuel'}.svg" width="22" height="22"></div>`,
+            iconSize: [34, 34], iconAnchor: [17, 34],
+        });
+
+
+        async function loadStations() {
+            const b = map.getBounds();
             const params = new URLSearchParams({
-                q: query,
-                format: 'json',
-                countrycodes: 'ie,gb',
-                limit: '1',
+                west: b.getWest().toFixed(4), south: b.getSouth().toFixed(4),
+                east: b.getEast().toFixed(4), north: b.getNorth().toFixed(4),
             });
-            const res = await fetch(`${NOMINATIM_URL}?${params}`, {
-                headers: { 'User-Agent': 'FuelPriceTracker/0.1' },
-            });
-            const results = await res.json();
-            if (results.length === 0) return null;
-            return {
-                lat: parseFloat(results[0].lat),
-                lon: parseFloat(results[0].lon),
-                name: results[0].display_name,
-            };
+            try {
+                const stations = await fetch(`/api/stations?${params}`).then(r => r.json());
+                for (const s of stations) {
+                    if (loadedStationIds.has(s.id)) continue;
+                    loadedStationIds.add(s.id);
+                    const icon = mkIcon(s.station_type, s.has_prices);
+                    const marker = L.marker([s.lat, s.lng], { icon });
+                    marker.stationData = s;
+                    marker.on('click', () => showStationPopup(s));
+                    stationMarkers[s.id] = marker;
+                    if ((s.station_type === 'fuel' && showFuel) || (s.station_type === 'ev' && showEv))
+                        clusterGroup.addLayer(marker);
+                }
+            } catch (e) { console.error(e); }
         }
 
-        function flyTo(lat, lon, altitude = 50000) {
-            viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
-                orientation: {
-                    heading: 0.0,
-                    pitch: Cesium.Math.toRadians(-90),
-                    roll: 0.0,
-                },
-                duration: 2,
-                complete: () => loadStations(viewer),
-            });
+        let loadTimeout;
+        map.on('moveend', () => { clearTimeout(loadTimeout); loadTimeout = setTimeout(loadStations, 400); });
+        loadStations();
+
+        // Station popup
+        let currentStationId = null;
+        const popup = document.getElementById('station-popup');
+
+        function showStationPopup(s) {
+            currentStationId = s.id;
+            document.getElementById('popup-name').textContent = s.name;
+            document.getElementById('popup-brand').textContent = s.brand ? 'Brand: ' + s.brand : '';
+            document.getElementById('popup-county').textContent = s.county ? 'County: ' + s.county : '';
+            const typeEl = document.getElementById('popup-type');
+            typeEl.textContent = s.station_type === 'ev' ? 'EV Charging' : 'Fuel Station';
+            typeEl.className = 'popup-type ' + s.station_type;
+            popup.style.display = 'block';
+            fetchAndRenderPrices(s.id);
         }
 
-        function dismissOverlay() {
-            if (overlayDismissed) return;
-            overlayDismissed = true;
-            document.getElementById('overlay').classList.add('hidden');
-            document.getElementById('overlay-search').disabled = true;
-            document.getElementById('search-bar').style.display = 'block';
-            document.getElementById('activity-feed').style.display = 'none';
+        document.getElementById('popup-close').addEventListener('click', () => popup.style.display = 'none');
+        map.on('click', () => popup.style.display = 'none');
 
-        }
-
-        async function handleSearch(query) {
-            if (!query.trim()) return;
-            const result = await geocode(query);
-            if (result) {
-                flyTo(result.lat, result.lon);
-                dismissOverlay();
-            } else {
-                alert('Location not found. Try a different name.');
-            }
-        }
-
-        async function setMapView(viewer, viewType) {
-            viewer.imageryLayers.removeAll();
-            let provider;
-            switch (viewType) {
-                case 'satellite':
-                    provider = await Cesium.IonImageryProvider.fromAssetId(2);
-                    break;
-                case 'street':
-                    provider = new Cesium.OpenStreetMapImageryProvider({
-                        url: 'https://tile.openstreetmap.org/',
-                    });
-                    break;
-                case 'terrain':
-                    provider = await Cesium.IonImageryProvider.fromAssetId(3);
-                    break;
-            }
-            viewer.imageryLayers.addImageryProvider(provider);
-        }
-
-        let loadedStationIds = new Set();
-        const stationDataSource = new Cesium.CustomDataSource('stations');
-
-
-
-        async function loadStations(viewer) {
-            const rect = viewer.camera.computeViewRectangle();
-            if (!rect) return;
-
-            const west = Cesium.Math.toDegrees(rect.west);
-            const south = Cesium.Math.toDegrees(rect.south);
-            const east = Cesium.Math.toDegrees(rect.east);
-            const north = Cesium.Math.toDegrees(rect.north);
-
-            const params = new URLSearchParams({
-                west: west.toFixed(4),
-                south: south.toFixed(4),
-                east: east.toFixed(4),
-                north: north.toFixed(4),
-            });
-
-            const res = await fetch(`/api/stations?${params}`);
-            const stations = await res.json();
-
-            // Filter to only new stations
-            const newStations = stations.filter(s => !loadedStationIds.has(s.id));
-            if (newStations.length === 0) return;
-
-            // Pre-load all icons in parallel
-            const iconPromises = newStations.map(s => {
-                const baseIcon = s.station_type === 'ev' ? '/assets/icon-ev.svg' : '/assets/icon-fuel.svg';
-                return createBadgedIcon(baseIcon, s.has_prices);
-            });
-            const icons = await Promise.all(iconPromises);
-
-            // Add all entities at once
-            for (let i = 0; i < newStations.length; i++) {
-                const s = newStations[i];
-                loadedStationIds.add(s.id);
-
-                stationDataSource.entities.add({
-                    id: `station-${s.id}`,
-                    position: Cesium.Cartesian3.fromDegrees(s.lng, s.lat),
-                    billboard: {
-                        image: icons[i],
-                        width: 28,
-                        height: 28,
-                        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                    },
-                    properties: {
-                        stationId: s.id,
-                        name: s.name,
-                        brand: s.brand,
-                        stationType: s.station_type,
-                        county: s.county,
-                    },
-                });
-            }
-
-            stationDataSource.clustering.enabled = false;
-            stationDataSource.clustering.enabled = true;
-        }
-
-
-        function createClusterIcon(count) {
-            const size = count > 100 ? 50 : count > 20 ? 44 : 36;
-            const canvas = document.createElement('canvas');
-            canvas.width = size;
-            canvas.height = size;
-            const ctx = canvas.getContext('2d');
-
-            ctx.beginPath();
-            ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-            ctx.fillStyle = '#6366f1';
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.fillStyle = '#fff';
-            ctx.font = `bold ${size > 44 ? 14 : 12}px sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(count, size / 2, size / 2);
-
-            return canvas.toDataURL();
-        }
-
-        function timeAgo(dateStr) {
-            const now = new Date();
-            const then = new Date(dateStr);
-            const diffMs = now - then;
-            const mins = Math.floor(diffMs / 60000);
-            const hours = Math.floor(mins / 60);
-            const days = Math.floor(hours / 24);
-
-            if (mins < 1) return 'just now';
-            if (mins < 60) return `${mins}m ago`;
-            if (hours < 24) return `${hours}h ago`;
-            return `${days}d ago`;
-        }
-
-        function setDateDefaults() {
-            const observedDate = document.getElementById('observed-date');
-            const today = new Date().toISOString().split('T')[0];
-            observedDate.value = today;
-            observedDate.max = today;
-            const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-            observedDate.min = thirtyAgo;
+        function timeAgo(d) {
+            const ms = new Date() - new Date(d), m = Math.floor(ms / 60000), h = Math.floor(m / 60), dy = Math.floor(h / 24);
+            return m < 1 ? 'just now' : m < 60 ? m + 'm ago' : h < 24 ? h + 'h ago' : dy + 'd ago';
         }
 
         async function fetchAndRenderPrices(stationId) {
             const container = document.getElementById('popup-prices');
             container.innerHTML = '<div class="popup-no-prices">Loading...</div>';
-
-            const clerk = window.clerkInstance;
-            const currentUserId = clerk?.user?.id || null;
-
+            const uid = window.clerkInstance?.user?.id || null;
             try {
-                const res = await fetch(`/api/prices/station/${stationId}`);
-                const prices = await res.json();
-
-                if (prices.length === 0) {
-                    container.innerHTML = '<div class="popup-no-prices">No prices yet — be the first to submit!</div>';
-                    return;
-                }
-
+                const prices = await fetch('/api/prices/station/' + stationId).then(r => r.json());
+                if (!prices.length) { container.innerHTML = '<div class="popup-no-prices">No prices yet - be the first!</div>'; return; }
                 const latest = {};
-                for (const p of prices) {
-                    if (!latest[p.fuel_type]) latest[p.fuel_type] = p;
-                }
-
+                for (const p of prices) if (!latest[p.fuel_type]) latest[p.fuel_type] = p;
                 let html = '';
-                for (const [fuelType, p] of Object.entries(latest)) {
-                    let badge = '';
-                    if (p.is_credible) badge = '<span class="badge-credible">⭐</span>';
-                    else if (p.is_verified) badge = '<span class="badge-verified">✅</span>';
-                    else badge = '<span class="badge-unverified">❓</span>';
-
-                    html += `
-                        <div class="popup-price-row">
-                            <span class="popup-fuel-type">${fuelType}</span>
-                            <span>
-                                <span class="popup-price-value">€${p.price.toFixed(3)}</span>
-                                ${badge}
-                            </span>
-                        </div>
-                        <div class="popup-price-meta">${timeAgo(p.observed_at)}</div>
-                    `;
-
-                    if (currentUserId && p.user_id !== currentUserId) {
-                        html += `
-                            <div class="popup-vote-row">
-                                <button class="vote-btn" data-price-id="${p.id}" data-vote="upvote">👍 Upvote</button>
-                                <button class="vote-btn" data-price-id="${p.id}" data-vote="reject">👎 Reject</button>
-                            </div>
-                        `;
-                    }
+                for (const [ft, p] of Object.entries(latest)) {
+                    const badge = p.is_credible ? 'credible' : p.is_verified ? 'verified' : 'unverified';
+                    const badgeText = p.is_credible ? 'Top' : p.is_verified ? 'Verified' : 'Unverified';
+                    html += '<div class="popup-price-row"><span class="popup-fuel-type">' + ft + '</span><span><span class="popup-price-value">EUR ' + p.price.toFixed(3) + '</span> <span class="badge-' + badge + '">' + badgeText + '</span></span></div>';
+                    html += '<div class="popup-price-meta">' + timeAgo(p.observed_at) + '</div>';
+                    if (uid && p.user_id !== uid) html += '<div class="popup-vote-row"><button class="vote-btn" data-price-id="' + p.id + '" data-vote="upvote">Upvote</button><button class="vote-btn" data-price-id="' + p.id + '" data-vote="reject">Reject</button></div>';
                 }
-
                 container.innerHTML = html;
+                container.querySelectorAll('.vote-btn').forEach(btn => btn.addEventListener('click', async () => {
+                    const h = { 'Content-Type': 'application/json' };
+                    const clerk = window.clerkInstance;
+                    if (clerk?.session) { const t = await clerk.session.getToken(); if (t) h['Authorization'] = 'Bearer ' + t; }
+                    const r = await fetch('/api/prices/' + btn.dataset.priceId + '/vote', { method: 'POST', headers: h, body: JSON.stringify({ vote_type: btn.dataset.vote }) });
+                    if (r.ok) btn.parentElement.querySelectorAll('.vote-btn').forEach(b => { b.disabled = true; b.classList.add('voted'); });
+                    else { const e = await r.json(); alert(e.detail || 'Failed'); }
+                }));
+            } catch (e) { container.innerHTML = '<div class="popup-no-prices">Failed to load</div>'; }
+        }
 
-                container.querySelectorAll('.vote-btn').forEach(btn => {
-                    btn.addEventListener('click', async () => {
-                        const priceId = btn.dataset.priceId;
-                        const voteType = btn.dataset.vote;
+        // Price form
+        let selectedStationId = null;
+        const priceFormOverlay = document.getElementById('price-form-overlay');
 
-                        try {
-                            const headers = { 'Content-Type': 'application/json' };
-                            if (clerk.session) {
-                                const token = await clerk.session.getToken();
-                                if (token) headers['Authorization'] = `Bearer ${token}`;
-                            }
+        function setDateDefaults() {
+            const el = document.getElementById('observed-date');
+            const today = new Date().toISOString().split('T')[0];
+            el.value = today; el.max = today;
+            el.min = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+        }
 
-                            const res = await fetch(`/api/prices/${priceId}/vote`, {
-                                method: 'POST',
-                                headers,
-                                body: JSON.stringify({ vote_type: voteType }),
-                            });
+        function openPriceForm(id, name) {
+            selectedStationId = id;
+            document.getElementById('form-station-name').textContent = name;
+            document.getElementById('form-auth-prompt').style.display = window.clerkInstance?.user ? 'none' : 'block';
+            document.getElementById('fuel-type-select').value = '';
+            document.getElementById('price-input').value = '';
+            document.getElementById('form-success').style.display = 'none';
+            ['fuel-type-error', 'price-error', 'date-error'].forEach(i => document.getElementById(i).style.display = 'none');
+            setDateDefaults();
+            popup.style.display = 'none';
+            priceFormOverlay.classList.add('active');
+        }
 
-                            if (res.ok) {
-                                const row = btn.parentElement;
-                                row.querySelectorAll('.vote-btn').forEach(b => {
-                                    b.classList.add('voted');
-                                    b.disabled = true;
-                                });
-                                btn.textContent = voteType === 'upvote' ? '👍 Voted' : '👎 Rejected';
-                            } else {
-                                const err = await res.json();
-                                alert(err.detail || 'Vote failed');
-                            }
-                        } catch (e) {
-                            alert('Network error. Please try again.');
-                        }
-                    });
-                });
+        function closeForm() { priceFormOverlay.classList.remove('active'); }
 
-            } catch (e) {
-                container.innerHTML = '<div class="popup-no-prices">Failed to load prices</div>';
+        document.getElementById('popup-submit-price').addEventListener('click', () => openPriceForm(currentStationId, document.getElementById('popup-name').textContent));
+        document.getElementById('price-cancel-btn').addEventListener('click', closeForm);
+        priceFormOverlay.addEventListener('click', e => { if (e.target === priceFormOverlay) closeForm(); });
+        document.getElementById('form-sign-in-btn').addEventListener('click', () => window.clerkInstance?.openSignIn());
+
+        document.getElementById('price-submit-btn').addEventListener('click', async () => {
+            const ft = document.getElementById('fuel-type-select').value;
+            const pv = parseFloat(document.getElementById('price-input').value);
+            const dv = document.getElementById('observed-date').value;
+            let ok = true;
+            if (!ft) { document.getElementById('fuel-type-error').style.display = 'block'; ok = false; } else document.getElementById('fuel-type-error').style.display = 'none';
+            if (!pv || pv <= 0 || pv >= 10) { document.getElementById('price-error').style.display = 'block'; ok = false; } else document.getElementById('price-error').style.display = 'none';
+            if (!dv) { document.getElementById('date-error').style.display = 'block'; ok = false; } else document.getElementById('date-error').style.display = 'none';
+            if (!ok) return;
+            try {
+                const h = { 'Content-Type': 'application/json' };
+                const clerk = window.clerkInstance;
+                if (clerk?.session) { const t = await clerk.session.getToken(); if (t) h['Authorization'] = 'Bearer ' + t; }
+                const r = await fetch('/api/prices', { method: 'POST', headers: h, body: JSON.stringify({ station_id: selectedStationId, fuel_type: ft, price: pv, observed_at: dv }) });
+                if (r.ok) { document.getElementById('form-success').style.display = 'block'; setTimeout(closeForm, 1500); }
+                else { const e = await r.json(); alert(e.detail || 'Failed'); }
+            } catch (e) { alert('Network error'); }
+        });
+
+        // Floating submit -> focus search
+        document.getElementById('floating-submit').addEventListener('click', () => {
+            searchInput.focus();
+            searchInput.placeholder = 'Search for a station to submit a price...';
+            setTimeout(() => searchInput.placeholder = 'Search for a fuel station...', 3000);
+        });
+
+
+        // Search
+        // Search - dual mode: station name + location geocoding
+        const searchInput = document.getElementById('station-search-input');
+        const searchResults = document.getElementById('station-search-results');
+
+        async function geocodeAndFly(q) {
+            const params = new URLSearchParams({ q, format: 'json', countrycodes: 'ie,gb', limit: '1' });
+            const res = await fetch('https://nominatim.openstreetmap.org/search?' + params, { headers: { 'User-Agent': 'FuelPriceTracker/1.0' } });
+            const data = await res.json();
+            if (data.length) {
+                map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 13);
+                searchResults.innerHTML = '';
+                searchInput.value = '';
+            } else {
+                searchResults.innerHTML = '<div class="search-result-empty">Location not found</div>';
             }
         }
 
-        function createBadgedIcon(baseUrl, hasPrices) {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                img.onload = () => {
-                    const size = 36;
-                    const canvas = document.createElement('canvas');
-                    canvas.width = size;
-                    canvas.height = size;
-                    const ctx = canvas.getContext('2d');
+        searchInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { geocodeAndFly(searchInput.value.trim()); }
+        });
 
-                    // Draw base icon
-                    ctx.drawImage(img, 0, 0, size, size);
-
-                    // Draw € badge if has prices
-                    if (hasPrices) {
-                        ctx.beginPath();
-                        ctx.arc(size - 8, 8, 7, 0, Math.PI * 2);
-                        ctx.fillStyle = '#16a34a';
-                        ctx.fill();
-                        ctx.strokeStyle = '#fff';
-                        ctx.lineWidth = 1.5;
-                        ctx.stroke();
-
-                        ctx.fillStyle = '#fff';
-                        ctx.font = 'bold 9px sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText('€', size - 8, 8.5);
-                    }
-
-                    resolve(canvas.toDataURL());
-                };
-                img.src = baseUrl;
-            });
-        }
-
-
-        async function initMap() {
-            // Fetch config first (needed by both Cesium and Clerk)
-            const res = await fetch('/api/config');
-            const config = await res.json();
-
-            // Start Cesium immediately
-            Cesium.Ion.defaultAccessToken = config.cesium_ion_token;
-
-            viewer = new Cesium.Viewer('cesiumContainer', {
-                baseLayerPicker: false,
-                geocoder: false,
-                homeButton: false,
-                timeline: false,
-                animation: false,
-                sceneModePicker: false,
-                navigationHelpButton: false,
-                creditContainer: 'credits',
-                infoBox: false,
-                selectionIndicator: false,
-            });
-
-            viewer.camera.percentageChanged = 0.01;
-
-            viewer.camera.setView({
-                destination: Cesium.Cartesian3.fromDegrees(-7.6, 53.4, 900000),
-                orientation: {
-                    heading: 0.0,
-                    pitch: Cesium.Math.toRadians(-90),
-                    roll: 0.0,
-                },
-            });
-
-            // Map view switcher
-            const viewSelect = document.getElementById('map-view');
-            viewSelect.addEventListener('change', (e) => {
-                setMapView(viewer, e.target.value);
-            });
-
-            // Clustering setup
-            stationDataSource.clustering.enabled = true;
-            stationDataSource.clustering.pixelRange = 40;
-            stationDataSource.clustering.minimumClusterSize = 3;
-
-            stationDataSource.clustering.clusterEvent.addEventListener((clusteredEntities, cluster) => {
-                cluster.label.show = false;
-                cluster.point.show = false;
-                cluster.billboard.show = true;
-                cluster.billboard.image = createClusterIcon(clusteredEntities.length);
-                cluster.billboard.width = 40;
-                cluster.billboard.height = 40;
-            });
-
-            await viewer.dataSources.add(stationDataSource);
-
-            // Camera move — dynamic clustering + station loading
-            let loadTimeout;
-            viewer.camera.changed.addEventListener(() => {
-                const height = viewer.camera.positionCartographic.height;
-                if (height > 500000) stationDataSource.clustering.pixelRange = 20;
-                else if (height > 100000) stationDataSource.clustering.pixelRange = 10;
-                else if (height > 50000) stationDataSource.clustering.pixelRange = 6;
-                else stationDataSource.clustering.pixelRange = 2;
-
-                clearTimeout(loadTimeout);
-                loadTimeout = setTimeout(() => loadStations(viewer), 500);
-
-                if (height < 200000) {
-                    document.getElementById('activity-feed').style.display = 'none';
-                }
-            });
-
-            // Dismiss overlay on zoom
-            viewer.camera.changed.addEventListener(() => {
-                if (overlayDismissed) return;
-                const height = viewer.camera.positionCartographic.height;
-                if (height < ZOOM_THRESHOLD) dismissOverlay();
-            });
-
-            // Hide popup on camera move
-            const popup = document.getElementById('station-popup');
-            viewer.camera.changed.addEventListener(() => {
-                popup.style.display = 'none';
-            });
-
-            // Load stations immediately
-            loadStations(viewer);
-
-            // Load Clerk in parallel (non-blocking for map)
-            const clerkPublishableKey = config.clerk_publishable_key;
-            const clerkFrontendApi = config.clerk_frontend_api;
-
-            await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.setAttribute('data-clerk-publishable-key', clerkPublishableKey);
-                script.src = `${clerkFrontendApi}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
-                script.async = true;
-                script.crossOrigin = 'anonymous';
-                script.addEventListener('load', resolve);
-                script.addEventListener('error', reject);
-                document.head.appendChild(script);
-            });
-
-            await window.Clerk.load();
-            const clerk = window.Clerk;
-
-            const authBtn = document.getElementById('auth-btn');
-            const userInfo = document.getElementById('user-info');
-
-            function updateAuthUI() {
-                if (clerk.user) {
-                    authBtn.style.display = 'none';
-                    userInfo.style.display = 'flex';
-                    document.getElementById('user-avatar').src = clerk.user.imageUrl;
-                    document.getElementById('user-name').textContent =
-                        clerk.user.firstName || clerk.user.emailAddresses[0]?.emailAddress || 'User';
-                } else {
-                    authBtn.style.display = 'block';
-                    userInfo.style.display = 'none';
-                }
-            }
-
-            authBtn.addEventListener('click', () => clerk.openSignIn());
-
-            document.getElementById('sign-out-btn').addEventListener('click', async () => {
-                await clerk.signOut();
-                updateAuthUI();
-            });
-
-            clerk.addListener(updateAuthUI);
-            updateAuthUI();
-            window.clerkInstance = clerk;
-
-            // Station click popup
-            document.getElementById('popup-close').addEventListener('click', () => {
-                popup.style.display = 'none';
-            });
-
-            const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-            handler.setInputAction((click) => {
-                const picked = viewer.scene.pick(click.position);
-
-                if (!Cesium.defined(picked) || !Cesium.defined(picked.id) || !picked.id.properties) {
-                    popup.style.display = 'none';
-                    return;
-                }
-
-                const props = picked.id.properties;
-                const name = props.name?.getValue() || 'Unknown';
-                const brand = props.brand?.getValue();
-                const county = props.county?.getValue();
-                const type = props.stationType?.getValue() || 'fuel';
-
-                document.getElementById('popup-name').textContent = name;
-                document.getElementById('popup-brand').textContent = brand ? `Brand: ${brand}` : '';
-                document.getElementById('popup-county').textContent = county ? `County: ${county}` : '';
-
-                const typeEl = document.getElementById('popup-type');
-                typeEl.textContent = type === 'ev' ? '⚡ EV Charging' : '⛽ Fuel Station';
-                typeEl.className = `popup-type ${type}`;
-
-                popup.dataset.stationId = props.stationId?.getValue();
-                // Inside the LEFT_CLICK handler:
-                let xPos = click.position.x + 15;
-                let yPos = click.position.y - 10;
-
-                // Simple bounds check for mobile
-                if (window.innerWidth < 768) {
-                    xPos = (window.innerWidth - 280) / 2; // Center it horizontally
-                    yPos = 80; // Keep it near the top
-                }
-
-                popup.style.left = xPos + 'px';
-                popup.style.top = yPos + 'px';
-                popup.style.zIndex = "2000"; // Ensure it stays above other map elements
-
-                
-                fetchAndRenderPrices(props.stationId?.getValue());
-                popup.style.display = 'block';
-
-            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-            // Price form
-            let selectedStationId = null;
-            let selectedStationName = '';
-            const priceFormOverlay = document.getElementById('price-form-overlay');
-            const formSuccess = document.getElementById('form-success');
-            const fuelTypeError = document.getElementById('fuel-type-error');
-            const priceError = document.getElementById('price-error');
-            const dateError = document.getElementById('date-error');
-            const formAuthPrompt = document.getElementById('form-auth-prompt');
-            const priceInput = document.getElementById('price-input');
-            const observedDate = document.getElementById('observed-date');
-
-            // Prevent Cesium capturing keyboard/mouse on inputs
-            [priceInput, observedDate].forEach(el => {
-                el.addEventListener('keydown', (e) => e.stopPropagation());
-                el.addEventListener('keyup', (e) => e.stopPropagation());
-                el.addEventListener('keypress', (e) => e.stopPropagation());
-                el.addEventListener('mousedown', (e) => {
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                });
-            });
-            priceInput.addEventListener('click', () => priceInput.focus());
-            priceInput.addEventListener('mousedown', (e) => {
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                setTimeout(() => priceInput.focus(), 0);
-            });
-
-            function openPriceForm(stationId, stationName) {
-                selectedStationId = stationId;
-                selectedStationName = stationName;
-                document.getElementById('form-station-name').textContent = stationName;
-                popup.style.display = 'none';
-
-                formAuthPrompt.style.display = clerk.user ? 'none' : 'block';
-
-                document.getElementById('fuel-type-select').value = '';
-                priceInput.value = '';
-                setDateDefaults();
-                formSuccess.style.display = 'none';
-                fuelTypeError.style.display = 'none';
-                priceError.style.display = 'none';
-                dateError.style.display = 'none';
-
-                viewer.scene.screenSpaceCameraController.enableInputs = false;
-                priceFormOverlay.classList.add('active');
-                setTimeout(() => document.getElementById('fuel-type-select').focus(), 100);
-            }
-
-            document.getElementById('popup-submit-price').addEventListener('click', () => {
-                openPriceForm(
-                    parseInt(popup.dataset.stationId),
-                    document.getElementById('popup-name').textContent
-                );
-            });
-
-            document.getElementById('form-sign-in-btn').addEventListener('click', () => clerk.openSignIn());
-
-            function closeForm() {
-                priceFormOverlay.classList.remove('active');
-                viewer.scene.screenSpaceCameraController.enableInputs = true;
-            }
-
-            document.getElementById('price-cancel-btn').addEventListener('click', closeForm);
-            priceFormOverlay.addEventListener('click', (e) => {
-                if (e.target === priceFormOverlay) closeForm();
-            });
-
-            document.getElementById('price-submit-btn').addEventListener('click', async () => {
-                const fuelType = document.getElementById('fuel-type-select').value;
-                const priceValue = parseFloat(priceInput.value);
-                const dateValue = observedDate.value;
-
-                let valid = true;
-                if (!fuelType) { fuelTypeError.style.display = 'block'; valid = false; }
-                else fuelTypeError.style.display = 'none';
-
-                if (!priceValue || priceValue <= 0 || priceValue >= 10) { priceError.style.display = 'block'; valid = false; }
-                else priceError.style.display = 'none';
-
-                if (!dateValue) { dateError.style.display = 'block'; valid = false; }
-                else dateError.style.display = 'none';
-
-                if (!valid) return;
-
+        let sTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(sTimeout);
+            const q = searchInput.value.trim();
+            if (q.length < 2) { searchResults.innerHTML = ''; return; }
+            sTimeout = setTimeout(async () => {
+                const c = map.getCenter();
+                const params = new URLSearchParams({ q, lat: c.lat.toFixed(4), lng: c.lng.toFixed(4), limit: '10' });
                 try {
-                    const headers = { 'Content-Type': 'application/json' };
-                    if (clerk.session) {
-                        const token = await clerk.session.getToken();
-                        if (token) headers['Authorization'] = `Bearer ${token}`;
-                    }
-
-                    const res = await fetch('/api/prices', {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify({
-                            station_id: selectedStationId,
-                            fuel_type: fuelType,
-                            price: priceValue,
-                            observed_at: dateValue,
-                        }),
-                    });
-
-                    if (res.ok) {
-                        formSuccess.style.display = 'block';
-                        setTimeout(() => closeForm(), 1500);
-                    } else {
-                        const err = await res.json();
-                        alert(err.detail || 'Failed to submit price');
-                    }
-                } catch (e) {
-                    alert('Network error. Please try again.');
-                }
-            });
-
-            // Overlay search
-            document.getElementById('overlay-search').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') handleSearch(e.target.value);
-            });
-
-            // Persistent search
-            document.getElementById('persistent-search').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    handleSearch(e.target.value);
-                    e.target.value = '';
-                }
-            });
-
-            // Legend toggle
-            document.getElementById('legend-toggle').addEventListener('click', () => {
-                const body = document.getElementById('legend-body');
-                const arrow = document.getElementById('legend-arrow');
-                body.classList.toggle('collapsed');
-                arrow.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
-            });
-
-            // Community CTA
-            document.getElementById('cta-header').addEventListener('click', () => {
-                const body = document.getElementById('cta-body');
-                const arrow = document.getElementById('cta-arrow');
-                body.classList.toggle('collapsed');
-                arrow.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
-            });
-
-            async function updatePriceCount() {
-                try {
-                    const res = await fetch('/api/stats');
-                    const data = await res.json();
-                    const label = data.total_prices === 1 ? 'price' : 'prices';
-                    document.getElementById('cta-stat').textContent = `📊 ${data.total_prices} ${label} submitted so far`;
-                } catch (e) {
-                    document.getElementById('cta-stat').textContent = '📊 Be the first to submit!';
-                }
-            }
-            updatePriceCount();
-
-            // Activity feed
-            document.getElementById('feed-header').addEventListener('click', () => {
-                const body = document.getElementById('feed-body');
-                const arrow = document.getElementById('feed-arrow');
-                body.classList.toggle('collapsed');
-                arrow.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
-            });
-
-            async function updateActivityFeed() {
-                try {
-                    const res = await fetch('/api/prices/recent?limit=10');
-                    const items = await res.json();
-                    const feedBody = document.getElementById('feed-body');
-
-                    if (items.length === 0) {
-                        feedBody.innerHTML = '<div class="feed-item feed-meta">No submissions yet</div>';
+                    const stations = await fetch('/api/stations/search?' + params).then(r => r.json());
+                    if (!stations.length) {
+                        searchResults.innerHTML = '<div class="search-result-empty">No stations found — press Enter to search by location</div>';
                         return;
                     }
+                    searchResults.innerHTML = stations.map(s =>
+                        '<div class="search-result-item" data-id="' + s.id + '" data-name="' + s.name + '" data-lat="' + s.lat + '" data-lng="' + s.lng + '">' +
+                        '<div>' + s.name + '</div>' +
+                        '<div class="search-result-brand">' + (s.brand || 'Unknown') + ' - ' + (s.station_type === 'ev' ? 'EV' : 'Fuel') + '</div></div>'
+                    ).join('');
+                    searchResults.querySelectorAll('.search-result-item').forEach(item => item.addEventListener('click', () => {
+                        searchResults.innerHTML = '';
+                        searchInput.value = '';
+                        map.setView([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], 16);
+                        setTimeout(() => openPriceForm(parseInt(item.dataset.id), item.dataset.name), 600);
+                    }));
+                } catch (e) { searchResults.innerHTML = '<div class="search-result-empty">Search failed</div>'; }
+            }, 300);
+        });
 
-                    feedBody.innerHTML = items.map(item => {
-                        const badge = item.is_verified ? '✅' : '❓';
-                        const fuelType = item.fuel_type.charAt(0).toUpperCase() + item.fuel_type.slice(1);
-                        return `
-                    <div class="feed-item">
-                        ${badge} <span class="feed-station">${item.station_name}</span>
-                        — ${fuelType} €${item.price.toFixed(3)}
-                        <div class="feed-meta">${timeAgo(item.submitted_at)}</div>
-                    </div>
-                `;
-                    }).join('');
-                } catch (e) {
-                    document.getElementById('feed-body').innerHTML =
-                        '<div class="feed-item feed-meta">Failed to load</div>';
-                }
-            }
+        //map.on('click', () => { searchResults.innerHTML = ''; });
 
-            updateActivityFeed();
-            setInterval(updateActivityFeed, 60000);
 
-            // Floating submit + station search
-            const searchOverlay = document.getElementById('station-search-overlay');
-            const searchInput = document.getElementById('station-search-input');
-            const searchResults = document.getElementById('station-search-results');
+        // Close search results on map click
+        map.on('click', () => { searchResults.innerHTML = ''; });
 
-            searchInput.addEventListener('keydown', (e) => e.stopPropagation());
-            searchInput.addEventListener('keyup', (e) => e.stopPropagation());
-            searchInput.addEventListener('keypress', (e) => e.stopPropagation());
-            searchInput.addEventListener('mousedown', (e) => {
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                setTimeout(() => searchInput.focus(), 0);
-            });
+        // Filters
+        document.getElementById('filter-toggle').addEventListener('click', () => document.getElementById('filter-dropdown').classList.toggle('open'));
+        document.addEventListener('click', e => { if (!document.getElementById('station-filter').contains(e.target)) document.getElementById('filter-dropdown').classList.remove('open'); });
 
-            document.getElementById('floating-submit').addEventListener('click', () => {
-                searchInput.value = '';
-                searchResults.innerHTML = '';
-                searchOverlay.classList.add('active');
-                viewer.scene.screenSpaceCameraController.enableInputs = false;
-                setTimeout(() => searchInput.focus(), 100);
-            });
-
-            document.getElementById('station-search-cancel').addEventListener('click', () => {
-                searchOverlay.classList.remove('active');
-                viewer.scene.screenSpaceCameraController.enableInputs = true;
-            });
-
-            searchOverlay.addEventListener('click', (e) => {
-                if (e.target === searchOverlay) {
-                    searchOverlay.classList.remove('active');
-                    viewer.scene.screenSpaceCameraController.enableInputs = true;
-                }
-            });
-
-            let searchTimeout;
-            searchInput.addEventListener('input', () => {
-                clearTimeout(searchTimeout);
-                const query = searchInput.value.trim();
-                if (query.length < 2) { searchResults.innerHTML = ''; return; }
-
-                searchTimeout = setTimeout(async () => {
-                    const centre = viewer.camera.positionCartographic;
-                    const lat = Cesium.Math.toDegrees(centre.latitude);
-                    const lng = Cesium.Math.toDegrees(centre.longitude);
-
-                    const params = new URLSearchParams({
-                        q: query,
-                        lat: lat.toFixed(4),
-                        lng: lng.toFixed(4),
-                        limit: '10',
-                    });
-
-                    try {
-                        const res = await fetch(`/api/stations/search?${params}`);
-                        const stations = await res.json();
-
-                        if (stations.length === 0) {
-                            searchResults.innerHTML = '<div class="search-result-empty">No stations found</div>';
-                            return;
-                        }
-
-                        searchResults.innerHTML = stations.map(s => `
-                    <div class="search-result-item" data-id="${s.id}" data-name="${s.name}"
-                        data-brand="${s.brand || ''}" data-type="${s.station_type}"
-                        data-lat="${s.lat}" data-lng="${s.lng}">
-                        <div>${s.name}</div>
-                        <div class="search-result-brand">${s.brand || 'Unknown brand'} · ${s.station_type === 'ev' ? '⚡ EV' : '⛽ Fuel'}</div>
-                    </div>
-                `).join('');
-
-                        searchResults.querySelectorAll('.search-result-item').forEach(item => {
-                            item.addEventListener('click', () => {
-                                const stationId = parseInt(item.dataset.id);
-                                const stationName = item.dataset.name;
-                                const stationLat = parseFloat(item.dataset.lat);
-                                const stationLng = parseFloat(item.dataset.lng);
-
-                                searchOverlay.classList.remove('active');
-                                viewer.scene.screenSpaceCameraController.enableInputs = true;
-                                flyTo(stationLat, stationLng, 5000);
-
-                                setTimeout(() => openPriceForm(stationId, stationName), 2200);
-                            });
-                        });
-                    } catch (e) {
-                        searchResults.innerHTML = '<div class="search-result-empty">Search failed</div>';
-                    }
-                }, 300);
-            });
-
-            // Station filter
-            const filterToggle = document.getElementById('filter-toggle');
-            const filterDropdown = document.getElementById('filter-dropdown');
-            const filterAll = document.getElementById('filter-all');
-            const filterFuel = document.getElementById('filter-fuel');
-            const filterEv = document.getElementById('filter-ev');
-
-            filterToggle.addEventListener('click', () => filterDropdown.classList.toggle('open'));
-
-            document.addEventListener('click', (e) => {
-                if (!document.getElementById('station-filter').contains(e.target)) {
-                    filterDropdown.classList.remove('open');
-                }
-            });
-
-            function applyFilter() {
-                const showFuel = filterFuel.checked;
-                const showEv = filterEv.checked;
-                const entities = stationDataSource.entities.values;
-                for (const entity of entities) {
-                    const type = entity.properties?.stationType?.getValue();
-                    if (type === 'fuel') entity.show = showFuel;
-                    else if (type === 'ev') entity.show = showEv;
-                }
-                stationDataSource.clustering.enabled = false;
-                stationDataSource.clustering.enabled = true;
-            }
-
-            filterAll.addEventListener('change', () => {
-                filterFuel.checked = filterAll.checked;
-                filterEv.checked = filterAll.checked;
-                applyFilter();
-            });
-
-            filterFuel.addEventListener('change', () => {
-                filterAll.checked = filterFuel.checked && filterEv.checked;
-                applyFilter();
-            });
-
-            filterEv.addEventListener('change', () => {
-                filterAll.checked = filterFuel.checked && filterEv.checked;
-                applyFilter();
-            });
-            // ADD THE MOBILE INITIALIZATION HERE:
-            if (window.innerWidth < 768) {
-                // Start legends and CTAs collapsed on mobile
-                document.getElementById('legend-body').classList.add('collapsed');
-                document.getElementById('legend-arrow').textContent = '▸';
-
-                const ctaBody = document.getElementById('cta-body');
-                if (ctaBody) {
-                    ctaBody.classList.add('collapsed');
-                    document.getElementById('cta-arrow').textContent = '▸';
-                }
+        function applyFilter() {
+            clusterGroup.clearLayers();
+            for (const [, m] of Object.entries(stationMarkers)) {
+                const t = m.stationData.station_type;
+                if ((t === 'fuel' && showFuel) || (t === 'ev' && showEv)) clusterGroup.addLayer(m);
             }
         }
+        document.getElementById('filter-fuel').addEventListener('change', e => { showFuel = e.target.checked; document.getElementById('filter-all').checked = showFuel && showEv; applyFilter(); });
+        document.getElementById('filter-ev').addEventListener('change', e => { showEv = e.target.checked; document.getElementById('filter-all').checked = showFuel && showEv; applyFilter(); });
+        document.getElementById('filter-all').addEventListener('change', e => { showFuel = showEv = e.target.checked; document.getElementById('filter-fuel').checked = e.target.checked; document.getElementById('filter-ev').checked = e.target.checked; applyFilter(); });
 
-        initMap();
+        // Notifications
+        function showNotifBanner() {
+            if (!('Notification' in window) || Notification.permission !== 'default') return;
+            if (localStorage.getItem('notif-dismissed')) return;
+            document.getElementById('notif-banner').style.display = 'flex';
+        }
+        document.getElementById('notif-allow-btn').addEventListener('click', async () => {
+            const p = await Notification.requestPermission();
+            document.getElementById('notif-banner').style.display = 'none';
+            if (p === 'granted') console.log('Notifications granted');
+        });
+        document.getElementById('notif-dismiss-btn').addEventListener('click', () => {
+            localStorage.setItem('notif-dismissed', '1');
+            document.getElementById('notif-banner').style.display = 'none';
+        });
+
+        // Auth
+        async function initAuth(config) {
+            await new Promise((res, rej) => {
+                const s = document.createElement('script');
+                s.setAttribute('data-clerk-publishable-key', config.clerk_publishable_key);
+                s.src = config.clerk_frontend_api + '/npm/@clerk/clerk-js@5/dist/clerk.browser.js';
+                s.async = true; s.crossOrigin = 'anonymous';
+                s.addEventListener('load', res); s.addEventListener('error', rej);
+                document.head.appendChild(s);
+            });
+            await window.Clerk.load();
+            const clerk = window.Clerk;
+            window.clerkInstance = clerk;
+            function updateUI() {
+                if (clerk.user) {
+                    document.getElementById('auth-btn').style.display = 'none';
+                    document.getElementById('user-info').style.display = 'flex';
+                    document.getElementById('user-avatar').src = clerk.user.imageUrl;
+                    showNotifBanner();
+                } else {
+                    document.getElementById('auth-btn').style.display = 'block';
+                    document.getElementById('user-info').style.display = 'none';
+                }
+            }
+            document.getElementById('auth-btn').addEventListener('click', () => clerk.openSignIn());
+            document.getElementById('sign-out-btn').addEventListener('click', async () => { await clerk.signOut(); updateUI(); });
+            clerk.addListener(updateUI);
+            updateUI();
+        }
+
+        async function init() {
+            const config = await fetch('/api/config').then(r => r.json());
+            initAuth(config).catch(console.error);
+        }
+        init();
     </script>
-
 </body>
 
 </html>

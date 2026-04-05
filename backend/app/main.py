@@ -45,6 +45,9 @@ app.include_router(stations_router)
 app.include_router(prices_router)
 app.include_router(votes_router)
 
+@app.get("/sw.js")
+async def service_worker():
+    return FileResponse("frontend/sw.js", media_type="application/javascript")
 
 app.mount("/assets", StaticFiles(directory="frontend"), name="frontend")
 
