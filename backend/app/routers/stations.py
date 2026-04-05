@@ -14,32 +14,33 @@ router = APIRouter(prefix="/api/stations", tags=["stations"])
 
 @router.get("", response_model=list[StationResponse])
 async def get_stations(
-    west: float = Query(..., description="Western longitude"),
-    south: float = Query(..., description="Southern latitude"),
-    east: float = Query(..., description="Eastern longitude"),
-    north: float = Query(..., description="Northern latitude"),
-    station_type: str | None = Query(None, description="Filter by station type: fuel, ev, both"),
+    west: float = Query(...), south: float = Query(...),
+    east: float = Query(...), north: float = Query(...),
+    station_type: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
+    latest_price = (
+        select(func.max(Price.submitted_at))
+        .where(Price.station_id == Station.id)
+        .correlate(Station)
+        .scalar_subquery()
+    )
     price_exists = exists().where(Price.station_id == Station.id).correlate(Station)
     stmt = (
-        select(Station, price_exists.label("has_prices"))
+        select(Station, price_exists.label("has_prices"), latest_price.label("last_price_at"))
         .where(ST_Within(Station.geom, ST_MakeEnvelope(west, south, east, north, 4326)))
     )
-
     if station_type:
         stmt = stmt.where(Station.station_type == station_type)
-
     result = await db.execute(stmt)
     rows = result.all()
-
     return [
         {
             "id": s.id, "name": s.name, "brand": s.brand,
             "lat": s.lat, "lng": s.lng, "station_type": s.station_type,
-            "county": s.county, "has_prices": hp,
+            "county": s.county, "has_prices": hp, "last_price_at": lp,
         }
-        for s, hp in rows
+        for s, hp, lp in rows
     ]
 
 

@@ -11,7 +11,8 @@ class StationResponse(BaseModel):
     station_type: str
     county: str | None
     has_prices: bool = False
-
+    last_price_at: datetime | None = None
+    
     model_config = {"from_attributes": True}
 
 
