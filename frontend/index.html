@@ -21,6 +21,27 @@
 
 <body>
     <div id="map"></div>
+    <!-- Onboarding overlay -->
+    <div id="onboarding">
+        <div id="onboarding-card">
+            <div id="onboarding-logo">⛽</div>
+            <h1>Fuel Price Tracker</h1>
+            <p class="onboarding-sub">Community-powered fuel prices across Ireland</p>
+            <div id="onboarding-stat">Loading...</div>
+            <p class="onboarding-cta">Every price you submit helps thousands of drivers save money. Takes 10 seconds.
+            </p>
+            <div id="onboarding-signin-box">
+                <button id="onboarding-signin-btn">Sign In with Google</button>
+                <p class="onboarding-nudge">Join the community — it's free!<br>
+                    Get notified when <strong>Cheapest Near Me</strong> and price analytics launch.<br>
+                    <span class="onboarding-nudge-sub">(Your submissions become verified ✅ — helping drivers find
+                        confirmed prices)</span>
+                </p>
+            </div>
+            <button id="onboarding-skip">Skip for now</button>
+        </div>
+    </div>
+
 
     <!-- Top bar -->
     <div id="top-bar">
@@ -99,6 +120,22 @@
             <div class="form-success" id="form-success">Price submitted!</div>
         </div>
     </div>
+    <!-- Station search modal for Submit Price flow -->
+    <div id="submit-search-overlay">
+        <div id="submit-search-box">
+            <div class="popup-drag-handle"></div>
+            <h3>Find a Station</h3>
+            <input id="submit-search-input" type="text" placeholder="Type station name...">
+            <div id="submit-search-results"></div>
+            <div id="submit-search-fallback" style="display:none;">
+                <p>Can't find your station? Search by area to zoom in and tap it on the map.</p>
+                <input id="submit-area-input" type="text" placeholder="Type area or town...">
+                <button id="submit-area-btn">Zoom to Area</button>
+            </div>
+            <button id="submit-search-cancel">Cancel</button>
+        </div>
+    </div>
+
 
     <!-- Floating submit button -->
     <button id="floating-submit">+ Submit Price</button>
@@ -258,11 +295,59 @@
         });
 
         // Floating submit -> focus search
+        // Submit Price flow
+        const submitOverlay = document.getElementById('submit-search-overlay');
+        const submitInput = document.getElementById('submit-search-input');
+        const submitResults = document.getElementById('submit-search-results');
+        const submitFallback = document.getElementById('submit-search-fallback');
+
         document.getElementById('floating-submit').addEventListener('click', () => {
-            searchInput.focus();
-            searchInput.placeholder = 'Search for a station to submit a price...';
-            setTimeout(() => searchInput.placeholder = 'Search for a fuel station...', 3000);
+            submitInput.value = ''; submitResults.innerHTML = '';
+            submitFallback.style.display = 'none';
+            submitOverlay.classList.add('active');
+            setTimeout(() => submitInput.focus(), 100);
         });
+
+        document.getElementById('submit-search-cancel').addEventListener('click', () => submitOverlay.classList.remove('active'));
+        submitOverlay.addEventListener('click', e => { if (e.target === submitOverlay) submitOverlay.classList.remove('active'); });
+
+        let ssTimeout;
+        submitInput.addEventListener('input', () => {
+            clearTimeout(ssTimeout);
+            const q = submitInput.value.trim();
+            if (q.length < 2) { submitResults.innerHTML = ''; submitFallback.style.display = 'none'; return; }
+            ssTimeout = setTimeout(async () => {
+                const c = map.getCenter();
+                const params = new URLSearchParams({ q, lat: c.lat.toFixed(4), lng: c.lng.toFixed(4), limit: '10' });
+                try {
+                    const stations = await fetch('/api/stations/search?' + params).then(r => r.json());
+                    if (!stations.length) {
+                        submitResults.innerHTML = '';
+                        submitFallback.style.display = 'block';
+                        return;
+                    }
+                    submitFallback.style.display = 'none';
+                    submitResults.innerHTML = stations.map(s =>
+                        '<div class="search-result-item" data-id="' + s.id + '" data-name="' + s.name + '" data-lat="' + s.lat + '" data-lng="' + s.lng + '">' +
+                        '<div>' + s.name + '</div>' +
+                        '<div class="search-result-brand">' + (s.brand || 'Unknown') + ' - ' + (s.station_type === 'ev' ? 'EV' : 'Fuel') + '</div></div>'
+                    ).join('');
+                    submitResults.querySelectorAll('.search-result-item').forEach(item => item.addEventListener('click', () => {
+                        submitOverlay.classList.remove('active');
+                        map.setView([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], 16);
+                        setTimeout(() => openPriceForm(parseInt(item.dataset.id), item.dataset.name), 600);
+                    }));
+                } catch (e) { submitResults.innerHTML = '<div class="search-result-empty">Search failed</div>'; }
+            }, 300);
+        });
+
+        document.getElementById('submit-area-btn').addEventListener('click', async () => {
+            const q = document.getElementById('submit-area-input').value.trim();
+            if (!q) return;
+            submitOverlay.classList.remove('active');
+            await geocodeAndFly(q);
+        });
+
 
 
         // Search
@@ -381,12 +466,34 @@
             document.getElementById('sign-out-btn').addEventListener('click', async () => { await clerk.signOut(); updateUI(); });
             clerk.addListener(updateUI);
             updateUI();
+            initOnboarding();
+
         }
 
         async function init() {
             const config = await fetch('/api/config').then(r => r.json());
             initAuth(config).catch(console.error);
         }
+
+        // Onboarding
+        async function initOnboarding() {
+            if (localStorage.getItem('onboarding-done')) return;
+            try {
+                const data = await fetch('/api/stats').then(r => r.json());
+                document.getElementById('onboarding-stat').textContent = '📊 ' + data.total_prices + ' prices submitted so far';
+            } catch (e) { }
+            document.getElementById('onboarding-signin-btn').addEventListener('click', () => {
+                document.getElementById('onboarding').classList.add('hidden');
+                localStorage.setItem('onboarding-done', '1');
+                window.clerkInstance?.openSignIn();
+            });
+            document.getElementById('onboarding-skip').addEventListener('click', () => {
+                document.getElementById('onboarding').classList.add('hidden');
+                localStorage.setItem('onboarding-done', '1');
+            });
+        }
+        //initOnboarding();
+
         init();
     </script>
 </body>
