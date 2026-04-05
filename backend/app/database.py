@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     cesium_ion_token: str = ""
     clerk_publishable_key: str = ""
     clerk_frontend_api: str = ""
+    vapid_private_key: str = ""
+    vapid_public_key: str = ""
+    vapid_claims_email: str = "mailto:chamin.ucd@gmail.com"
+
 
     class Config:
         env_file = ".env"

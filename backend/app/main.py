@@ -19,7 +19,27 @@ from app.models import Price
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import FastAPI, Depends
 from app.models import Price, Station
+from app.routers.push import router as push_router
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import datetime, timezone
+from app.models import PushSubscription
 
+
+
+scheduler = AsyncIOScheduler()
+
+async def send_reminders():
+    from app.routers.push import send_push
+    from datetime import timedelta
+    freq_map = {"daily":1, "3days":3, "weekly":7, "2weeks":14}
+    async with async_session() as db:
+        result = await db.execute(select(PushSubscription))
+        subs = result.scalars().all()
+        now = datetime.now(timezone.utc)
+        for sub in subs:
+            days = freq_map.get(sub.frequency, 7)
+            if (now - sub.created_at).days % days == 0:
+                send_push(sub, {"title": "Fuel Price Tracker", "body": "Got a minute? Submit a fuel price near you!"})
 
 
 
@@ -29,6 +49,9 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     init_jwks(settings.clerk_frontend_api)
+    scheduler.add_job(send_reminders, "cron", hour=10, minute=0)
+    scheduler.start()
+
     yield
 
 app = FastAPI(title="Fuel Price Tracker", version="0.1.0", lifespan=lifespan)
@@ -44,6 +67,8 @@ app.add_middleware(
 app.include_router(stations_router)
 app.include_router(prices_router)
 app.include_router(votes_router)
+app.include_router(push_router)
+
 
 @app.get("/sw.js")
 async def service_worker():

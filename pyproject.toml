@@ -13,6 +13,8 @@ dependencies = [
     "alembic",
     "httpx",
     "pyjwt[crypto]",
+    "pywebpush",
+    "apscheduler",
 
 
 ]

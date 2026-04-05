@@ -58,3 +58,14 @@ class User(Base):
     tier: Mapped[str] = mapped_column(String(10), default="free")  # free / paid
     questions_used: Mapped[int] = mapped_column(Integer, default=0)
     questions_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(255))
+    endpoint: Mapped[str] = mapped_column(String(500))
+    p256dh: Mapped[str] = mapped_column(String(255))
+    auth: Mapped[str] = mapped_column(String(100))
+    frequency: Mapped[str] = mapped_column(String(20), default="weekly")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

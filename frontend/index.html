@@ -23,23 +23,30 @@
     <div id="map"></div>
     <!-- Onboarding overlay -->
     <div id="onboarding">
+        
         <div id="onboarding-card">
-            <div id="onboarding-logo">⛽</div>
-            <h1>Fuel Price Tracker</h1>
-            <p class="onboarding-sub">Community-powered fuel prices across Ireland</p>
-            <div id="onboarding-stat">Loading...</div>
-            <p class="onboarding-cta">Every price you submit helps thousands of drivers save money. Takes 10 seconds.
-            </p>
-            <div id="onboarding-signin-box">
-                <button id="onboarding-signin-btn">Sign In with Google</button>
-                <p class="onboarding-nudge">Join the community — it's free!<br>
-                    Get notified when <strong>Cheapest Near Me</strong> and price analytics launch.<br>
-                    <span class="onboarding-nudge-sub">(Your submissions become verified ✅ — helping drivers find
-                        confirmed prices)</span>
-                </p>
-            </div>
-            <button id="onboarding-skip">Skip for now</button>
-        </div>
+    <div id="onboarding-logo">⛽</div>
+    <h1>Fuel Price Tracker</h1>
+    <p class="onboarding-sub"><strong>🇮🇪 Community-powered</strong><br/>
+     <!-- The more we share, <br/>the more we all save. 💪 -->
+    </p>
+    <div id="onboarding-stat">Loading...</div>
+    <!-- <div id="onboarding-community">
+       </div>
+     -->
+    <div id="onboarding-signin-box">
+        <p class="onboarding-nudge">
+            <strong>
+                   
+        Join now.<br/> Submit verified prices ✅  & Save more 💪.</strong>
+        
+        </p><p></p>
+        <button id="onboarding-signin-btn">Sign In with Google</button>
+        
+    </div>
+    <button id="onboarding-skip">Skip for now</button>
+</div>
+
     </div>
 
 
@@ -71,10 +78,17 @@
 
     <!-- Notification banner -->
     <div id="notif-banner">
-        <span>Get reminders to submit prices?</span>
+        <span>🔔 Get reminders to submit prices?</span>
+        <select id="notif-frequency">
+            <option value="daily">Daily</option>
+            <option value="3days">Every 3 days</option>
+            <option value="weekly" selected>Weekly</option>
+            <option value="2weeks">Every 2 weeks</option>
+        </select>
         <button id="notif-allow-btn">Allow</button>
         <button id="notif-dismiss-btn">Not now</button>
     </div>
+
 
     <!-- Station bottom sheet popup -->
     <div id="station-popup">
@@ -441,6 +455,15 @@
         document.getElementById('filter-all').addEventListener('change', e => { showFuel = showEv = e.target.checked; document.getElementById('filter-fuel').checked = e.target.checked; document.getElementById('filter-ev').checked = e.target.checked; applyFilter(); });
         document.getElementById('filter-recent').addEventListener('change', applyFilter);
 
+        // Notifications banner meta
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = atob(base64);
+            return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+        }
+
+
         // Notifications
         function showNotifBanner() {
             if (!('Notification' in window) || Notification.permission !== 'default') return;
@@ -448,10 +471,35 @@
             document.getElementById('notif-banner').style.display = 'flex';
         }
         document.getElementById('notif-allow-btn').addEventListener('click', async () => {
-            const p = await Notification.requestPermission();
+            const permission = await Notification.requestPermission();
             document.getElementById('notif-banner').style.display = 'none';
-            if (p === 'granted') console.log('Notifications granted');
+            if (permission !== 'granted') return;
+            try {
+                // Get VAPID public key from backend
+                const { public_key } = await fetch('/api/push/vapid-public-key').then(r => r.json());
+                // Convert key to Uint8Array
+                const converted = urlBase64ToUint8Array(public_key);
+                // Subscribe browser to push
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: converted });
+                const subJson = sub.toJSON();
+                // Send to backend
+                const h = { 'Content-Type': 'application/json' };
+                const clerk = window.clerkInstance;
+                if (clerk?.session) { const t = await clerk.session.getToken(); if (t) h['Authorization'] = 'Bearer ' + t; }
+                await fetch('/api/push/subscribe', {
+                    method: 'POST', headers: h, body: JSON.stringify({
+                        endpoint: subJson.endpoint,
+                        p256dh: subJson.keys.p256dh,
+                        auth: subJson.keys.auth,
+                        frequency: document.getElementById('notif-frequency').value
+
+                    })
+                });
+                console.log('Push subscription saved!');
+            } catch (e) { console.error('Push subscription failed:', e); }
         });
+
         document.getElementById('notif-dismiss-btn').addEventListener('click', () => {
             localStorage.setItem('notif-dismissed', '1');
             document.getElementById('notif-banner').style.display = 'none';
@@ -476,16 +524,19 @@
                     document.getElementById('user-info').style.display = 'flex';
                     document.getElementById('user-avatar').src = clerk.user.imageUrl;
                     showNotifBanner();
+                    document.getElementById('onboarding').classList.add('hidden'); // hide if signed in
                 } else {
                     document.getElementById('auth-btn').style.display = 'block';
                     document.getElementById('user-info').style.display = 'none';
+                    initOnboarding(); // only show onboarding if NOT signed in
                 }
             }
+
             document.getElementById('auth-btn').addEventListener('click', () => clerk.openSignIn());
             document.getElementById('sign-out-btn').addEventListener('click', async () => { await clerk.signOut(); updateUI(); });
             clerk.addListener(updateUI);
             updateUI();
-            initOnboarding();
+            //initOnboarding();
 
         }
 
@@ -496,6 +547,7 @@
 
         // Onboarding
         async function initOnboarding() {
+            await new Promise(r => setTimeout(r, 500));
             if (window.clerkInstance?.user) return;
             const isPWA = window.matchMedia('(display-mode: standalone)').matches;
             if (isPWA && localStorage.getItem('pwa-onboarded')) return;
