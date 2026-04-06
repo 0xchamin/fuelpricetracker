@@ -163,6 +163,26 @@ graph TD
     Mobile -->|Location search| U
     Q -->|VAPID push| W -->|Notification| C
 ```
+## 🔄 How It Works at Runtime
+
+### App Load
+When a user opens the app, the browser loads `index.html` from FastAPI. The **Service Worker** intercepts the request — if the app was previously cached, it loads instantly offline. On first load, the SW caches static assets (HTML, CSS, icons) for future offline use.
+
+### Map Initialisation
+Leaflet initialises the map and immediately calls `/api/stations` with the current **bounding box** (viewport coordinates). FastAPI passes these to PostGIS via a `ST_Within + ST_MakeEnvelope` spatial query — only stations visible on screen are returned, keeping responses fast regardless of total station count.
+
+### Authentication
+In parallel, Clerk loads asynchronously. Once ready, it checks for an existing session JWT. If found, the user is silently signed in — no redirect needed. The JWT is attached as a `Bearer` token on price submissions and votes.
+
+### Price Submission
+When a user submits a price, FastAPI validates the payload via Pydantic, checks auth status (verified vs anonymous), applies IP-based rate limiting for anonymous users, and writes to PostgreSQL. The response immediately reflects the new verified/unverified status.
+
+### Push Notifications
+After a user grants notification permission, the browser generates a **push subscription** (endpoint + encryption keys) using the VAPID public key fetched from `/api/push/vapid-public-key`. This subscription is sent to `/api/push/subscribe` and stored in PostgreSQL. Every day at 10am, **APScheduler** fires `send_reminders()`, which fetches all subscriptions and sends push messages via `pywebpush` using the VAPID private key. The browser's push service delivers the notification even when the app is closed.
+
+### Search
+The search bar runs two modes in parallel — typing triggers a DB station name search via `/api/stations/search` (PostGIS proximity sort). Pressing Enter triggers a **Nominatim geocoding** request to OpenStreetMap, which returns coordinates for the area, and the map flies there.
+
 
 ---
 
