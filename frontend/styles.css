@@ -415,3 +415,7 @@ html, body {
 }
 #locate-btn:hover { background: #f8fafc; }
 
+.locate-marker {
+    font-size: 1.6rem;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
