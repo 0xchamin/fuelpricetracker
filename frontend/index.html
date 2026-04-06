@@ -156,7 +156,7 @@
 
     <!-- Floating submit button -->
     <button id="floating-submit">+ Submit Price</button>
-    
+
     <button id="locate-btn" title="Find my location">📍</button>
 
     <script>
@@ -573,16 +573,25 @@
 
         init();
 
+        let locateMarker = null;
         document.getElementById('locate-btn').addEventListener('click', () => {
             if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
             navigator.geolocation.getCurrentPosition(
-                pos => map.setView([pos.coords.latitude, pos.coords.longitude], 14),
+                pos => {
+                    const { latitude, longitude } = pos.coords;
+                    map.setView([latitude, longitude], 14);
+                    if (locateMarker) map.removeLayer(locateMarker);
+                    locateMarker = L.marker([latitude, longitude], {
+                        icon: mkIcon('fuel', false)
+                    }).addTo(map);
+                },
                 () => alert('Could not get your location')
             );
         });
 
+
     </script>
-    
+
 
 </body>
 
