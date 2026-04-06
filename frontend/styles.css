@@ -117,7 +117,8 @@ html, body {
 }
 .map-marker.fuel { color: #2563eb; border-color: #93c5fd; }
 .map-marker.ev { color: #16a34a; border-color: #86efac; }
-.map-marker.has-prices { border-width: 3px; }
+.map-marker.has-prices { border-width: 4px; }
+
 .map-marker.fuel.has-prices { border-color: #2563eb; }
 .map-marker.ev.has-prices { border-color: #16a34a; }
 
@@ -398,3 +399,19 @@ html, body {
 #onboarding-community p { margin-bottom: 6px; }
 #onboarding-community p:last-child { margin-bottom: 0; }
 .onboarding-coming-soon { font-size: 0.78rem; color: #64748b; }
+
+#locate-btn {
+    position: fixed;
+    bottom: 100px; right: 12px;
+    z-index: 500;
+    width: 36px; height: 36px;
+    border-radius: 4px;
+    border: 2px solid rgba(0,0,0,0.2);
+    background: #fff;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+#locate-btn:hover { background: #f8fafc; }
+
