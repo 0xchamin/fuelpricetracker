@@ -1,6 +1,6 @@
 # ⛽ Fuel Price Tracker — Ireland
 
-A community-powered, real-time fuel and EV charging price tracker for Ireland. Built on a 3D interactive globe using CesiumJS, with a FastAPI backend, PostgreSQL database, and Clerk authentication.
+A community-powered, real-time fuel and EV charging price tracker for Ireland. Built as a **Progressive Web App (PWA)** with a Leaflet map, FastAPI backend, PostgreSQL/PostGIS database, and Clerk authentication.
 
 > 🚧 **Work in progress** — Analytics, cheapest-station-by-area, and price alerts coming soon.
 
@@ -8,64 +8,161 @@ A community-powered, real-time fuel and EV charging price tracker for Ireland. B
 
 ## ✨ Features
 
-- 🌍 Interactive 3D globe (CesiumJS) with satellite, street, and terrain views
+- 🗺️ Interactive map (Leaflet.js) with satellite and street views
 - ⛽ Fuel station & ⚡ EV charging station markers with smart clustering
+- 📱 **Mobile-first PWA** — install on iOS and Android, no App Store required
+- 🔔 Push notification reminders to submit fuel prices
 - 💰 Community price submissions (anonymous or verified)
 - 📅 Date-observed tracking (up to 30 days back)
 - 👍 Upvote / 👎 reject price credibility system
-- 🔐 Clerk-based authentication for verified submissions
-- 🔍 Station search by name with map fly-to
+- 🔐 Clerk-based Google Sign-In for verified submissions
+- 🔍 Dual-mode search — station name + area/location geocoding
 - 📊 Live submission counter
-- 🗂️ Station type filtering (fuel / EV)
+- 🗂️ Station type filtering (fuel / EV / recent 72hrs)
+- 📍 Locate me — one tap to fly to your current location
 
 ---
 
-## 🏗️ Architecture
+## 📱 Installing on Mobile (PWA)
+
+No App Store needed! Install directly from your browser.
+
+### iOS (Safari)
+1. Open the app URL in **Safari**
+2. Tap the **Share button** (box with arrow at the bottom)
+3. Scroll down and tap **"Add to Home Screen"**
+4. Tap **Add** — the app icon appears on your home screen
+
+### Android (Chrome)
+1. Open the app URL in **Chrome**
+2. Tap the **three dots menu** (top right)
+3. Tap **"Add to Home Screen"**
+4. Tap **Add** — the app icon appears on your home screen
+
+> Once installed, the app launches full-screen like a native app, works offline for cached content, and supports push notifications.
+
+---
+
+## 🏗️ Architecture & Technical Decisions
+
+### Why PWA instead of native iOS/Android?
+
+Building separate native apps (Swift + Kotlin) would require two codebases, two App Store accounts ($99/year for Apple alone), and significantly more development time. A PWA delivers:
+
+- **Single codebase** for web, iOS, and Android
+- **No App Store fees** — deploy instantly via Railway
+- **Instant updates** — users always get the latest version on next load
+- **Native-like experience** — full screen, home screen icon, push notifications
+- **Lower barrier to entry** — users install in 2 taps, no download friction
+
+The tradeoff is slightly less deep OS integration (e.g. no background sync), which is acceptable for this use case.
+
+### Why Leaflet instead of CesiumJS?
+
+The original prototype used CesiumJS (a 3D globe library). We migrated to Leaflet for the PWA because:
+
+- **CesiumJS is ~10MB** loaded from CDN — too heavy for mobile
+- **Leaflet is ~150KB** — loads instantly on mobile networks
+- **3D globe is unnecessary** for fuel price discovery — a 2D map is clearer and faster
+- **Leaflet.markercluster** handles thousands of station markers efficiently
+- **Lower battery usage** — no WebGL 3D rendering on mobile
+
+### Why Vanilla JS instead of React/Vue?
+
+Keeping the frontend as a single `index.html` with vanilla JS means:
+
+- **Zero build step** — no webpack, no bundler, no node_modules
+- **Served directly by FastAPI** as a static file
+- **Instant deployment** — change HTML, rebuild Docker, done
+- **Smaller payload** — no framework overhead
+- For the scale and complexity of this app, a framework adds friction without benefit
+
+### Why FastAPI?
+
+- **Async by default** — handles many concurrent map/station requests efficiently
+- **Pydantic validation** — input validation on all price submissions is critical for data quality
+- **Auto-generated OpenAPI docs** at `/docs` — free API documentation
+- **SQLAlchemy async** — non-blocking DB queries keep the API responsive under load
+
+### Why PostgreSQL + PostGIS?
+
+- **PostGIS** enables native geospatial queries — `ST_Within` and `ST_MakeEnvelope` let us efficiently fetch only stations within the current map viewport (bounding box query), which is critical for performance at scale
+- Without PostGIS, fetching stations by location would require loading all stations and filtering in Python — unacceptable at thousands of stations
+- **Neon.tech** hosts the DB with serverless scaling and built-in PostGIS support
+
+### Why Clerk for Auth?
+
+- **Google Sign-In in minutes** — no custom OAuth implementation
+- **JWT tokens** — stateless auth that works seamlessly with FastAPI
+- **Supports both cookie and Bearer token** — works in browser and mobile PWA contexts
+- **Free tier** is sufficient for early-stage data gathering
+- Verified submissions (signed-in users) are flagged with ✅, building community trust in the data
+
+### Why VAPID Push Notifications?
+
+- **Web Push API** is the standard for PWA notifications on both Android and iOS (iOS 16.4+)
+- **VAPID** (Voluntary Application Server Identification) provides end-to-end security for push messages without a third-party service
+- **APScheduler** runs inside FastAPI to send scheduled reminders — no separate worker process needed at this scale
+- User-controlled frequency (daily / 3 days / weekly / 2 weeks) respects user preferences and reduces churn
+
+### Why Railway for Hosting?
+
+- **Git-based deployment** — push to `pwa` branch, Railway auto-deploys
+- **Free tier** sufficient for early stage
+- **Environment variables** managed via Railway dashboard
+- **No DevOps overhead** — no Kubernetes, no nginx config
+
+---
+
+## 🏗️ System Architecture
 
 ```mermaid
 graph TD
-    subgraph Browser["Browser (Vanilla JS)"]
-        A[CesiumJS Globe]
-        B[Station Search Modal]
-        C[Price Submission Form]
+    subgraph Mobile["Mobile / Browser (PWA)"]
+        A[Leaflet.js Map]
+        B[Service Worker]
+        C[Push Notifications]
         D[Clerk Auth SDK]
     end
 
-    subgraph Frontend["Frontend (Static Files)"]
+    subgraph Frontend["Frontend (Static Files - served by FastAPI)"]
         E[index.html]
         F[styles.css]
-        G[SVG Icons]
+        G[sw.js]
+        H[manifest.json]
     end
 
-    subgraph Backend["Backend (FastAPI)"]
-        H["/api/config"]
-        I["/api/stations"]
-        J["/api/stations/search"]
-        K["/api/prices"]
-        L["/api/prices/:id/vote"]
-        M["/api/stats"]
-
+    subgraph Backend["Backend (FastAPI - async)"]
+        I["/api/config"]
+        J["/api/stations (PostGIS bbox)"]
+        K["/api/stations/search"]
+        L["/api/prices"]
+        M["/api/prices/:id/vote"]
+        N["/api/stats"]
+        O["/api/push/subscribe"]
+        P["/api/push/vapid-public-key"]
+        Q[APScheduler - push reminders]
     end
 
     subgraph Data["Data Layer"]
-        N[(PostgreSQL)]
-        O[SQLAlchemy ORM]
+        R[(PostgreSQL + PostGIS - Neon.tech)]
+        S[SQLAlchemy Async ORM]
     end
 
     subgraph External["External Services"]
-        P[Clerk — Auth]
-        Q[Cesium Ion — Imagery]
-        R[Nominatim — Geocoding]
-        S[OpenStreetMap — Tiles]
+        T[Clerk - Google Auth]
+        U[Nominatim - Geocoding]
+        V[OpenStreetMap - Map Tiles]
+        W[Web Push API]
     end
 
-    Browser -->|HTTP fetch| Backend
-    Backend --> O --> N
-    D <-->|JWT tokens| P
-    A <-->|Token| Q
-    A -->|Tile requests| S
-    Browser -->|Search| R
-````
+    Mobile -->|HTTP fetch| Backend
+    Backend --> S --> R
+    D <-->|JWT tokens| T
+    A -->|Tile requests| V
+    Mobile -->|Location search| U
+    Q -->|VAPID push| W -->|Notification| C
+```
 
 ---
 
@@ -75,23 +172,30 @@ graph TD
 fuelpricetracker/
 ├── backend/
 │   └── app/
-│       ├── main.py            # FastAPI app entrypoint
-│       ├── models.py          # SQLAlchemy models (Station, Price, Vote)
-│       ├── schemas.py         # Pydantic request/response schemas
-│       ├── database.py        # DB session & engine setup
+│       ├── main.py              # FastAPI entrypoint, lifespan, scheduler
+│       ├── models.py            # SQLAlchemy models (Station, Price, Vote, PushSubscription, User)
+│       ├── schemas.py           # Pydantic request/response schemas
+│       ├── database.py          # Async DB session, settings
+│       ├── auth.py              # Clerk JWT verification
 │       └── routers/
-│           ├── stations.py    # Station endpoints
-│           ├── prices.py      # Price submission & voting
-│           └── stats.py       # Aggregate stats
+│           ├── stations.py      # Station endpoints (PostGIS bbox + search)
+│           ├── prices.py        # Price submission & rate limiting
+│           ├── votes.py         # Upvote/reject prices
+│           └── push.py          # Push notification subscribe/unsubscribe
 ├── frontend/
-│   ├── index.html             # Single-page app
-│   ├── styles.css             # All UI styles
+│   ├── index.html               # Single-page PWA app
+│   ├── styles.css               # All UI styles (mobile-first)
+│   ├── sw.js                    # Service worker (caching + push)
+│   ├── manifest.json            # PWA manifest
+│   ├── icon-192.png             # PWA icon
+│   ├── icon-512.png             # PWA icon
 │   └── assets/
 │       ├── icon-fuel.svg
 │       └── icon-ev.svg
 ├── scripts/
-│   └── seed_stations.py       # Import stations from OSM/CSV
+│   └── seed_stations.py         # Seed stations from OpenStreetMap via Overpass API
 ├── docker-compose.yml
+├── pyproject.toml
 ├── .env.example
 └── README.md
 ```
@@ -103,14 +207,15 @@ fuelpricetracker/
 ### Prerequisites
 
 - Docker & Docker Compose
-- A [Clerk](https://clerk.dev) account (free tier is fine)
-- A [Cesium Ion](https://cesium.com/ion) account (free tier is fine)
+- A [Clerk](https://clerk.dev) account (free tier)
+- A [Neon.tech](https://neon.tech) PostgreSQL database with PostGIS enabled
 
 ### 1. Clone the repo
 
 ```bash
 git clone https://github.com/0xchamin/fuelpricetracker.git
 cd fuelpricetracker
+git checkout pwa
 ```
 
 ### 2. Configure environment
@@ -122,25 +227,40 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@db:5432/fuelpricetracker
-CLERK_SECRET_KEY=sk_...
+DATABASE_URL=postgresql://user:password@host/fuelpricetracker?sslmode=require
 CLERK_PUBLISHABLE_KEY=pk_...
 CLERK_FRONTEND_API=https://your-clerk-frontend-api.clerk.accounts.dev
-CESIUM_ION_TOKEN=your_cesium_token
+VAPID_PRIVATE_KEY=your_vapid_private_key
+VAPID_PUBLIC_KEY=your_vapid_public_key
+VAPID_CLAIMS_EMAIL=mailto:your@email.com
 ```
 
-### 3. Build and run
+### 3. Generate VAPID keys
+
+```python
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, PrivateFormat, NoEncryption
+import base64
+
+key = ec.generate_private_key(ec.SECP256R1())
+priv = base64.urlsafe_b64encode(key.private_bytes(Encoding.DER, PrivateFormat.PKCS8, NoEncryption())).decode()
+pub = base64.urlsafe_b64encode(key.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)).decode()
+print("VAPID_PRIVATE_KEY=", priv)
+print("VAPID_PUBLIC_KEY=", pub)
+```
+
+### 4. Build and run
 
 ```bash
 docker compose up --build
 ```
 
-The app will be available at `http://localhost:8000`.
+App available at `http://localhost:9098`
 
-### 4. Seed station data
+### 5. Seed station data
 
 ```bash
-docker compose exec backend python scripts/seed_stations.py
+docker compose exec backend python -m app.scripts.seed_stations
 ```
 
 ---
@@ -149,13 +269,17 @@ docker compose exec backend python scripts/seed_stations.py
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/config` | Returns public frontend config (keys, tokens) |
-| `GET` | `/api/stations` | Stations within a bounding box |
-| `GET` | `/api/stations/search` | Full-text station search with proximity sort |
+| `GET` | `/api/config` | Public frontend config |
+| `GET` | `/api/stations` | Stations within bounding box (PostGIS) |
+| `GET` | `/api/stations/search` | Full-text search with proximity sort |
 | `GET` | `/api/prices/station/{id}` | Latest prices for a station |
-| `POST` | `/api/prices` | Submit a new price (auth optional) |
+| `POST` | `/api/prices` | Submit a price (auth optional) |
 | `POST` | `/api/prices/{id}/vote` | Upvote or reject a price (auth required) |
-| `GET` | `/api/stats` | Aggregate stats (total prices, stations, etc.) |
+| `GET` | `/api/stats` | Aggregate stats |
+| `GET` | `/api/prices/recent` | Recent price submissions |
+| `GET` | `/api/push/vapid-public-key` | VAPID public key for push subscription |
+| `POST` | `/api/push/subscribe` | Save push subscription (auth required) |
+| `DELETE` | `/api/push/unsubscribe` | Remove push subscription (auth required) |
 
 ---
 
@@ -163,68 +287,45 @@ docker compose exec backend python scripts/seed_stations.py
 
 | Submission type | Badge | Criteria |
 |-----------------|-------|----------|
-| Anonymous | ❓ | No account required |
-| Verified | ✅ | Signed-in Clerk user |
-| Credible | ⭐ | Verified + community upvotes threshold met |
+| Anonymous | ❓ | No account required, rate limited by IP |
+| Verified | ✅ | Signed-in via Google (Clerk) |
+| Credible | ⭐ | Verified + 5+ community upvotes |
 
 ---
 
 ## 🗺️ Roadmap
 
+- [x] PWA with mobile install support
+- [x] Push notification reminders
+- [x] Leaflet map (replaced CesiumJS)
+- [x] Dual-mode search (station + geocoding)
+- [x] 72-hour recent submissions filter
+- [x] Locate me button
+- [x] Railway deployment
 - [ ] Cheapest stations by county / area
 - [ ] Price trend charts per station
-- [ ] Price alert subscriptions
-- [ ] Mobile-responsive layout
+- [ ] Stats & analytics page
 - [ ] Admin moderation dashboard
 - [ ] Stale price indicators (>48h)
-- [ ] Railway production deployment
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please open an issue before submitting a PR to discuss what you'd like to change.
+Contributions are very welcome! This is a community project — every contribution helps Irish drivers save money.
 
 1. Fork the repo
 2. Create your feature branch: `git checkout -b feat/your-feature`
-3. Commit: `git commit -m "feat: describe your change"`
+3. Commit using conventional commits: `git commit -m "feat: describe your change"`
 4. Push: `git push origin feat/your-feature`
 5. Open a Pull Request
+
+Please open an issue first to discuss significant changes.
 
 ---
 
 ## 📄 License
 
-```
-MIT License
+MIT License — see [LICENSE](LICENSE) for details.
 
-Copyright (c) 2026 fuelpricetracker contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
----
-
-## 🙏 Acknowledgements
-
-- [CesiumJS](https://cesium.com) — 3D globe rendering
-- [Clerk](https://clerk.dev) — Authentication
-- [OpenStreetMap](https://openstreetmap.org) — Map tiles & station data
-- [Nominatim](https://nominatim.org) — Geocoding
-- [FastAPI](https://fastapi.tiangolo.com) — Backend framework
+This project is open source and free to use, modify and distribute. We chose MIT because we believe open, frictionless collaboration is the best way to build tools that benefit everyone.
